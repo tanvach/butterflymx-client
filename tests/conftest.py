@@ -20,7 +20,17 @@ from butterflymx import ButterflyMXClient
 EMAIL = "user@example.com"
 PASSWORD = "hunter2"
 TENANT_ID = "prod-tenant-1"
-_LOGIN_FIXTURE = Path(__file__).parent / "fixtures" / "login_csrf.html"
+_FIXTURES = Path(__file__).parent / "fixtures"
+_LOGIN_FIXTURE = _FIXTURES / "login_csrf.html"
+_VERIFICATION_FIXTURE = _FIXTURES / "login_verification.html"
+# Not on the phone verification page. Used only when a test turns resend on,
+# so the client can submit a resend control the page actually contains.
+_RESEND_SNIPPET = """
+<form method="POST" action="/login/resend">
+  <input type="hidden" name="_csrf_token" value="__CSRF_TOKEN__">
+  <button type="submit">Resend code</button>
+</form>
+"""
 
 # The page a wrong password lands on (303 -> GET /login/new). Sanitized: no token
 # from the real site, just the markup the client classifies.
@@ -33,16 +43,6 @@ LOGIN_ERROR_PAGE = """
 </form>
 """
 
-# Not captured from the live site (a real account would be required). Shape only:
-# a code field, no password field, and the words the client looks for.
-VERIFICATION_PAGE = """
-<form action="/login/challenge" method="post">
-  <input type="hidden" name="_csrf_token" value="csrf-123">
-  <p>Enter the verification code we texted you</p>
-  <input name="code" id="verification_code">
-  <input type="submit" name="commit" value="Verify">
-</form>
-"""
 
 TENANT_DATA = {
     "accessPoints": {"nodes": [
@@ -88,7 +88,15 @@ class FakeButterflyMX:
         self.login_page_has_token = True
         self.login_page_format = "rails"  # "rails" (authenticity_token) or "csrf" (_csrf_token)
         self.login_requires_verification = False
+        self.verification_via_redirect = False
+        self.verification_offers_resend = False
+        self.verification_code = "123456"
+        self._verify_csrf = "csrf-verify"
+        self._verify_return_to = None
+        self._verify_state = None
         self.last_login_form = None
+        self.last_verify_form = None
+        self.verify_cookie = None
         self.graphql_override = None  # (status, body) to return instead of real data
         self.graphql_delay = 0.0  # seconds to stall GraphQL responses (timeout tests)
         self.data = copy.deepcopy(TENANT_DATA)
@@ -188,9 +196,53 @@ class FakeButterflyMX:
         if not ok:
             raise web.HTTPSeeOther("/login/new")
         if self.login_requires_verification:
-            return web.Response(text=VERIFICATION_PAGE, content_type="text/html")
+            self._verify_state = state
+            self._verify_return_to = return_to
+            self._verify_csrf = "csrf-verify"
+            if self.verification_via_redirect:
+                response = web.Response(status=303, headers={"Location": "/login/verify"})
+                response.set_cookie("identity_session", "verify-session")
+                return response
+            return self._verification_response(invalid=False)
         self._authenticated.add(state)
         raise web.HTTPSeeOther(return_to)
+
+    def _verification_response(self, *, invalid):
+        page = _VERIFICATION_FIXTURE.read_text().replace("__CSRF_TOKEN__", self._verify_csrf)
+        error = '<div class="select-none text-sm text-red-1">Invalid verification code</div>' if invalid else ""
+        page = page.replace("<!--ERROR-->", error)
+        if self.verification_offers_resend:
+            page += _RESEND_SNIPPET.replace("__CSRF_TOKEN__", self._verify_csrf)
+        response = web.Response(text=page, content_type="text/html")
+        response.set_cookie("identity_session", "verify-session")
+        return response
+
+    async def verify_page(self, request):
+        self.requests.append("verify_page")
+        return self._verification_response(invalid=False)
+
+    async def verify(self, request):
+        self.requests.append("verify")
+        form = await request.post()
+        self.last_verify_form = {key: form.get(key) for key in form}
+        self.verify_cookie = request.cookies.get("identity_session")
+        if self.verify_cookie != "verify-session":
+            return web.Response(status=401, text="missing login session")
+        if form.get("_csrf_token") != self._verify_csrf:
+            return web.json_response({"error": "CSRF_ERROR", "error_description": "CSRF token mismatch"}, status=403)
+        if form.get("code") != self.verification_code:
+            self._verify_csrf = "csrf-verify-2"
+            return self._verification_response(invalid=True)
+        self._authenticated.add(self._verify_state)
+        raise web.HTTPSeeOther(self._verify_return_to)
+
+    async def resend_code(self, request):
+        self.requests.append("resend")
+        form = await request.post()
+        if form.get("_csrf_token") != self._verify_csrf:
+            return web.json_response({"error": "CSRF_ERROR"}, status=403)
+        self._verify_csrf = "csrf-verify-resent"
+        return self._verification_response(invalid=False)
 
     async def token(self, request):
         form = await request.post()
@@ -258,6 +310,9 @@ class FakeButterflyMX:
         app.router.add_get("/oauth/authorize", self.authorize)
         app.router.add_post("/login", self.login)
         app.router.add_get("/login/new", self.login_error_page)
+        app.router.add_get("/login/verify", self.verify_page)
+        app.router.add_post("/login/phone/verify", self.verify)
+        app.router.add_post("/login/resend", self.resend_code)
         app.router.add_post("/oauth/token", self.token)
         app.router.add_post("/graphql", self.graphql)
         app.router.add_post("/unlock", self.unlock)

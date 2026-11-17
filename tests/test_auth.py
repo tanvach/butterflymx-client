@@ -10,13 +10,16 @@ from butterflymx import (
     ButterflyMXApiError,
     ButterflyMXAuthError,
     ButterflyMXClient,
+    ButterflyMXError,
+    ButterflyMXInvalidVerificationCode,
     ButterflyMXVerificationRequired,
 )
-from butterflymx.client import _parse_login_form
+from butterflymx.client import _parse_login_form, _parse_verification_form
 
 from .conftest import EMAIL, PASSWORD
 
 FIXTURE = Path(__file__).parent / "fixtures" / "login_csrf.html"
+VERIFICATION_FIXTURE = Path(__file__).parent / "fixtures" / "login_verification.html"
 
 
 async def test_full_login_gets_and_saves_tokens(make_client, fake, tmp_path):
@@ -113,15 +116,103 @@ async def test_csrf_wrong_password_raises_auth_error(make_client, fake):
     assert "token:authorization_code" not in fake.requests
 
 
-async def test_verification_code_page_raises_distinct_error(make_client, fake):
+def test_verification_fixture_is_the_phone_code_form():
+    page = VERIFICATION_FIXTURE.read_text().replace("__CSRF_TOKEN__", "csrf-verify")
+    form = _parse_verification_form(page)
+    assert form is not None
+    assert form.action == "/login/phone/verify"
+    assert form.code_field == "code"
+    assert form.fields == {"_csrf_token": "csrf-verify"}
+    # The live page's only link is "Try a different number", not resend.
+    assert form.can_resend is False
+
+
+async def test_verification_code_is_not_an_auth_error(make_client, fake):
     fake.login_page_format = "csrf"
     fake.login_requires_verification = True
+    client = make_client()
     with pytest.raises(ButterflyMXVerificationRequired, match="verification code") as exc:
-        await make_client().login()
-    # Subclass of the auth error, so callers that only catch that (the Home
-    # Assistant integration) still report a failed login rather than cannot_connect.
-    assert isinstance(exc.value, ButterflyMXAuthError)
+        await client.login()
+    # Home Assistant maps ButterflyMXAuthError to "Invalid email or password".
+    # A code challenge must not take that path.
+    assert isinstance(exc.value, ButterflyMXError)
+    assert not isinstance(exc.value, ButterflyMXAuthError)
+    assert exc.value.can_resend is False
+    assert PASSWORD not in str(exc.value)
     assert "token:authorization_code" not in fake.requests
+    assert client._login_session is not None and not client._login_session.closed
+
+
+async def test_verification_code_completes_login_on_the_same_session(make_client, fake):
+    fake.login_page_format = "csrf"
+    fake.login_requires_verification = True
+    client = make_client()
+    with pytest.raises(ButterflyMXVerificationRequired) as exc:
+        await client.login()
+    await exc.value.submit_code("123456")
+
+    assert client.access_token in fake.valid_access_tokens
+    assert fake.verify_cookie == "verify-session"
+    assert fake.last_verify_form["code"] == "123456"
+    assert fake.last_verify_form["_csrf_token"] == "csrf-verify"
+    assert fake.requests == ["authorize", "login", "verify", "authorize_redirect", "token:authorization_code"]
+    assert client._login_session is None
+
+
+async def test_wrong_verification_code_can_be_retried(make_client, fake):
+    fake.login_page_format = "csrf"
+    fake.login_requires_verification = True
+    client = make_client()
+    with pytest.raises(ButterflyMXVerificationRequired):
+        await client.login()
+    with pytest.raises(ButterflyMXInvalidVerificationCode, match="Invalid verification code") as exc:
+        await client.submit_verification_code("000000")
+    assert type(exc.value) is ButterflyMXInvalidVerificationCode
+    assert not isinstance(exc.value, ButterflyMXAuthError)
+    assert "000000" not in str(exc.value)
+    assert fake.requests.count("verify") == 1
+
+    await exc.value.submit_code("123456")
+    assert client.access_token in fake.valid_access_tokens
+    assert fake.last_verify_form["_csrf_token"] == "csrf-verify-2"
+    assert fake.verify_cookie == "verify-session"
+
+
+async def test_verification_redirect_is_followed(make_client, fake):
+    fake.login_page_format = "csrf"
+    fake.login_requires_verification = True
+    fake.verification_via_redirect = True
+    client = make_client()
+    with pytest.raises(ButterflyMXVerificationRequired):
+        await client.login()
+    assert fake.requests == ["authorize", "login", "verify_page"]
+    await client.submit_verification_code("123456")
+    assert "token:authorization_code" in fake.requests
+
+
+async def test_resend_is_used_only_when_the_page_offers_it(make_client, fake):
+    fake.login_page_format = "csrf"
+    fake.login_requires_verification = True
+    client = make_client()
+    with pytest.raises(ButterflyMXVerificationRequired):
+        await client.login()
+    with pytest.raises(ButterflyMXApiError, match="does not offer resend"):
+        await client.resend_verification_code()
+
+    fake.verification_offers_resend = True
+    with pytest.raises(ButterflyMXVerificationRequired) as exc:
+        await make_client().login()
+    assert exc.value.can_resend is True
+    await exc.value.resend()
+    await exc.value.submit_code("123456")
+    assert "resend" in fake.requests
+    assert fake.last_verify_form["_csrf_token"] == "csrf-verify-resent"
+
+
+async def test_submit_without_a_pending_code_raises(make_client):
+    client = make_client()
+    with pytest.raises(ButterflyMXApiError, match="No verification login is in progress"):
+        await client.submit_verification_code("123456")
 
 
 async def test_state_mismatch_aborts_login(make_client, fake):
