@@ -99,6 +99,8 @@ class FakeButterflyMX:
         self.verify_cookie = None
         self.graphql_override = None  # (status, body) to return instead of real data
         self.graphql_delay = 0.0  # seconds to stall GraphQL responses (timeout tests)
+        self.authorize_delay = 0.0
+        self.verify_delay = 0.0
         self.data = copy.deepcopy(TENANT_DATA)
         # Recorded traffic
         self.requests = []
@@ -121,6 +123,8 @@ class FakeButterflyMX:
     # --- accounts.butterflymx.com ---
 
     async def authorize(self, request):
+        if self.authorize_delay:
+            await asyncio.sleep(self.authorize_delay)
         q = request.query
         if q["state"] in self._authenticated:
             self.requests.append("authorize_redirect")
@@ -222,6 +226,8 @@ class FakeButterflyMX:
         return self._verification_response(invalid=False)
 
     async def verify(self, request):
+        if self.verify_delay:
+            await asyncio.sleep(self.verify_delay)
         self.requests.append("verify")
         form = await request.post()
         self.last_verify_form = {key: form.get(key) for key in form}

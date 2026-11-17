@@ -375,12 +375,20 @@ class ButterflyMXClient:
         self._session = None
 
     async def _discard_login_attempt(self) -> None:
-        """Drop a half-finished login, including its accounts cookies."""
+        """Drop a half-finished login, including its accounts cookies.
+
+        Safe to call while this task is being cancelled: one cancellation is
+        lifted so the session can finish closing, then the caller re-raises.
+        """
         self._pending_login = None
         session = self._login_session
         self._login_session = None
-        if session is not None and not session.closed:
-            await session.close()
+        if session is None or session.closed:
+            return
+        task = asyncio.current_task()
+        if task is not None and task.cancelling():
+            task.uncancel()
+        await session.close()
 
     def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -519,6 +527,10 @@ class ButterflyMXClient:
                 self.expires_at = 0
             if self._token_is_valid():
                 return
+            # A code challenge is already in progress. Starting another login
+            # would close that accounts session.
+            if self._pending_login is not None and self._pending_login.action:
+                raise self._pending_verification_required()
             if self.refresh_token and await self._refresh_access_token():
                 return
             await self._full_login()
@@ -549,31 +561,34 @@ class ButterflyMXClient:
 
         Posts the code on the same accounts session that accepted the password,
         then follows the redirects through to the OAuth token exchange.
+        Shares the auth lock with `ensure_token`, so another request cannot
+        start a fresh login and close this session mid-submit.
         """
-        pending = self._pending_login
-        session = self._login_session
-        if pending is None or session is None or session.closed:
-            raise ButterflyMXApiError("No verification login is in progress")
-        _LOGGER.debug("Submitting verification code")
-        data = dict(pending.fields)
-        data[pending.code_field] = code
-        status, text, headers = await self._request(
-            "POST",
-            self._absolute_url(pending.action),
-            session=session,
-            allow_redirects=False,
-            data=data,
-        )
-        self._raise_for_status(status, text, "Verification")
-        try:
-            await self._complete_login(session, pending, status, text, headers)
-        except (ButterflyMXVerificationRequired, ButterflyMXInvalidVerificationCode):
-            raise
-        except Exception:
-            await self._discard_login_attempt()
-            raise
-        else:
-            await self._discard_login_attempt()
+        async with self._auth_lock:
+            pending = self._pending_login
+            session = self._login_session
+            if pending is None or session is None or session.closed or not pending.action:
+                raise ButterflyMXApiError("No verification login is in progress")
+            _LOGGER.debug("Submitting verification code")
+            data = dict(pending.fields)
+            data[pending.code_field] = code
+            try:
+                status, text, headers = await self._request(
+                    "POST",
+                    self._absolute_url(pending.action),
+                    session=session,
+                    allow_redirects=False,
+                    data=data,
+                )
+                self._raise_for_status(status, text, "Verification")
+                await self._complete_login(session, pending, status, text, headers)
+            except (ButterflyMXVerificationRequired, ButterflyMXInvalidVerificationCode):
+                raise
+            except BaseException:
+                await self._discard_login_attempt()
+                raise
+            else:
+                await self._discard_login_attempt()
 
     async def resend_verification_code(self) -> None:
         """Ask ButterflyMX to send another code, when the page offers that.
@@ -582,38 +597,45 @@ class ButterflyMXClient:
         (only "Try a different number"). This uses a resend form or link when
         the code page actually contains one.
         """
-        pending = self._pending_login
-        session = self._login_session
-        if pending is None or session is None or session.closed:
-            raise ButterflyMXApiError("No verification login is in progress")
-        if not pending.resend_action or not pending.resend_method:
-            raise ButterflyMXApiError("This verification step does not offer resend")
-        _LOGGER.debug("Requesting another verification code")
-        kwargs: dict[str, Any] = {"allow_redirects": False}
-        if pending.resend_method == "GET":
-            kwargs["params"] = pending.resend_fields or None
-        else:
-            kwargs["data"] = pending.resend_fields or {}
-        status, text, headers = await self._request(
-            pending.resend_method, self._absolute_url(pending.resend_action), session=session, **kwargs
-        )
-        self._raise_for_status(status, text, "Resend verification code")
-        for _ in range(5):
-            location = headers.get("Location") if status in _REDIRECT_STATUSES else None
-            if location and location.startswith(self.REDIRECT_URI):
-                await self._exchange_code(session, self._authorization_code(location, pending.state), pending.verifier)
+        async with self._auth_lock:
+            pending = self._pending_login
+            session = self._login_session
+            if pending is None or session is None or session.closed or not pending.action:
+                raise ButterflyMXApiError("No verification login is in progress")
+            if not pending.resend_action or not pending.resend_method:
+                raise ButterflyMXApiError("This verification step does not offer resend")
+            _LOGGER.debug("Requesting another verification code")
+            kwargs: dict[str, Any] = {"allow_redirects": False}
+            if pending.resend_method == "GET":
+                kwargs["params"] = pending.resend_fields or None
+            else:
+                kwargs["data"] = pending.resend_fields or {}
+            try:
+                status, text, headers = await self._request(
+                    pending.resend_method, self._absolute_url(pending.resend_action), session=session, **kwargs
+                )
+                self._raise_for_status(status, text, "Resend verification code")
+                for _ in range(5):
+                    location = headers.get("Location") if status in _REDIRECT_STATUSES else None
+                    if location and location.startswith(self.REDIRECT_URI):
+                        await self._exchange_code(
+                            session, self._authorization_code(location, pending.state), pending.verifier
+                        )
+                        await self._discard_login_attempt()
+                        return
+                    if not location:
+                        break
+                    status, text, headers = await self._request(
+                        "GET", self._absolute_url(location), session=session, allow_redirects=False
+                    )
+                    self._raise_for_status(status, text, "Resend verification code")
+                form = _parse_verification_form(text)
+                if form is None:
+                    raise ButterflyMXApiError("Resend did not return a verification form")
+                pending.use_form(form)
+            except asyncio.CancelledError:
                 await self._discard_login_attempt()
-                return
-            if not location:
-                break
-            status, text, headers = await self._request(
-                "GET", self._absolute_url(location), session=session, allow_redirects=False
-            )
-            self._raise_for_status(status, text, "Resend verification code")
-        form = _parse_verification_form(text)
-        if form is None:
-            raise ButterflyMXApiError("Resend did not return a verification form")
-        pending.use_form(form)
+                raise
 
     async def _full_login(self) -> None:
         verifier = generate_code_verifier()
@@ -683,7 +705,7 @@ class ButterflyMXClient:
             await self._complete_login(session, pending, status, text, headers)
         except (ButterflyMXVerificationRequired, ButterflyMXInvalidVerificationCode):
             raise
-        except Exception:
+        except BaseException:
             await self._discard_login_attempt()
             raise
         else:
@@ -721,6 +743,21 @@ class ButterflyMXClient:
         if _page_says_invalid_password(text):
             raise ButterflyMXAuthError("Login failed: invalid email or password")
         raise ButterflyMXAuthError("Login failed: no OAuth redirect received (check email/password)")
+
+    def _pending_verification_required(self) -> ButterflyMXVerificationRequired:
+        pending = self._pending_login
+        assert pending is not None
+        form = _VerificationForm(
+            action=pending.action,
+            code_field=pending.code_field,
+            fields=dict(pending.fields),
+            resend_method=pending.resend_method,
+            resend_action=pending.resend_action,
+            resend_fields=None if pending.resend_fields is None else dict(pending.resend_fields),
+        )
+        error = self._verification_error(ButterflyMXVerificationRequired, form)
+        assert isinstance(error, ButterflyMXVerificationRequired)
+        return error
 
     def _verification_error(
         self,

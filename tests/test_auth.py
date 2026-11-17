@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import stat
@@ -207,6 +208,45 @@ async def test_resend_is_used_only_when_the_page_offers_it(make_client, fake):
     await exc.value.submit_code("123456")
     assert "resend" in fake.requests
     assert fake.last_verify_form["_csrf_token"] == "csrf-verify-resent"
+
+
+async def test_api_call_does_not_replace_a_pending_verification(make_client, fake):
+    fake.login_page_format = "csrf"
+    fake.login_requires_verification = True
+    client = make_client()
+    with pytest.raises(ButterflyMXVerificationRequired):
+        await client.login()
+    fake.requests.clear()
+    with pytest.raises(ButterflyMXVerificationRequired):
+        await client.get_tenants()
+    assert fake.requests == []
+    await client.submit_verification_code("123456")
+    assert client.access_token in fake.valid_access_tokens
+
+
+async def test_api_call_waits_for_verification_submit(make_client, fake):
+    fake.login_page_format = "csrf"
+    fake.login_requires_verification = True
+    fake.verify_delay = 0.3
+    client = make_client()
+    with pytest.raises(ButterflyMXVerificationRequired):
+        await client.login()
+    submit = asyncio.create_task(client.submit_verification_code("123456"))
+    await asyncio.sleep(0.05)
+    tenants = await client.get_tenants()
+    await submit
+    assert tenants
+    assert fake.count("authorize") == 1
+    assert fake.count("verify") == 1
+
+
+async def test_cancelled_login_closes_the_accounts_session(make_client, fake):
+    fake.authorize_delay = 1
+    client = make_client()
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(client.login(), 0.05)
+    assert client._login_session is None
+    assert client._pending_login is None
 
 
 async def test_submit_without_a_pending_code_raises(make_client):
