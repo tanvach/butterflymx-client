@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import inspect
 import json
 import logging
@@ -10,6 +11,7 @@ import secrets
 import time
 import urllib.parse
 from collections.abc import Awaitable, Callable
+from html.parser import HTMLParser
 from typing import Any
 
 import aiohttp
@@ -18,6 +20,7 @@ from .exceptions import (
     ButterflyMXApiError,
     ButterflyMXAuthError,
     ButterflyMXConnectionError,
+    ButterflyMXVerificationRequired,
 )
 from .tenant import Tenant
 from .utils import generate_code_challenge, generate_code_verifier
@@ -29,6 +32,121 @@ TokenCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
 # Refresh this many seconds before the access token actually expires
 EXPIRY_BUFFER = 60
 DEFAULT_EXPIRES_IN = 86400
+_REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+# The accounts site has used both names: Rails `authenticity_token`, then the
+# identity service's `_csrf_token`. Field names changed with them.
+_TOKEN_FIELDS = ("authenticity_token", "_csrf_token")
+_EMAIL_FIELDS = ("login[email]", "email")
+_PASSWORD_FIELDS = ("login[password]", "password")
+_VERIFICATION_TEXT = (
+    "verification code",
+    "enter the code",
+    "two-step verification",
+    "one-time code",
+)
+_VERIFICATION_FIELD_RE = re.compile(r"""name=["'](?:code|otp|verification_code|one_time_code)["']""")
+
+
+class _LoginFormParser(HTMLParser):
+    """Collect each form's action and inputs. Enough to rebuild the login POST."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.forms: list[dict[str, Any]] = []
+        self._current: dict[str, Any] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attr = dict(attrs)
+        if tag == "form":
+            self._current = {"action": attr.get("action") or "", "inputs": []}
+            self.forms.append(self._current)
+        elif tag == "input" and self._current is not None:
+            self._current["inputs"].append(attr)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "form":
+            self._current = None
+
+
+def _select_login_form(forms: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The email/password form, not the Microsoft/Google SSO forms beside it."""
+
+    def names(form: dict[str, Any]) -> set[str]:
+        return {item.get("name") for item in form["inputs"] if item.get("name")}
+
+    for form in forms:
+        found = names(form)
+        if found & set(_EMAIL_FIELDS) or found & set(_PASSWORD_FIELDS):
+            return form
+    for form in forms:
+        if names(form) & set(_TOKEN_FIELDS):
+            return form
+    return None
+
+
+def _parse_login_form(page: str, email: str, password: str) -> tuple[str, dict[str, str]] | None:
+    """Return `(action, fields)` for the login POST, or None if no token is present.
+
+    Hidden fields (including `return_to`) are copied through. HTML entities in
+    values are decoded, so a `return_to` of `/oauth/authorize?a=1&amp;b=2` is
+    posted as `/oauth/authorize?a=1&b=2`.
+    """
+    parser = _LoginFormParser()
+    parser.feed(page)
+    form = _select_login_form(parser.forms)
+    if form is None:
+        return None
+
+    fields: dict[str, str] = {}
+    email_field: str | None = None
+    password_field: str | None = None
+    for item in form["inputs"]:
+        name = item.get("name")
+        if not name:
+            continue
+        value = item.get("value") or ""
+        kind = (item.get("type") or "").lower()
+        if name in _EMAIL_FIELDS:
+            email_field = name
+        elif name in _PASSWORD_FIELDS:
+            password_field = name
+        elif name == "commit":
+            fields["commit"] = value or fields.get("commit", "")
+        elif kind in ("hidden", "") and (kind == "hidden" or value or name in _TOKEN_FIELDS):
+            fields[name] = value
+
+    if not any(name in fields for name in _TOKEN_FIELDS):
+        return None
+    if email_field is None:
+        email_field = "login[email]" if "authenticity_token" in fields else "email"
+    if password_field is None:
+        password_field = "login[password]" if "authenticity_token" in fields else "password"
+    fields[email_field] = email
+    fields[password_field] = password
+    if not fields.get("commit"):
+        fields["commit"] = "Sign in with email"
+    return form.get("action") or "/login", fields
+
+
+def _login_page_problem(text: str) -> ButterflyMXAuthError | None:
+    """Classify a finished login page that never redirected back to the app.
+
+    A wrong password is a 200 page (or the page a 303 lands on) saying
+    "Invalid email or password". A verification-code challenge is a page
+    without the password field. Anything else returns None so the caller can
+    use the generic "no OAuth redirect" error.
+    """
+    low = text.lower()
+    has_password = any(
+        marker in low for marker in ('name="password"', "name='password'", 'name="login[password]"')
+    )
+    if not has_password and any(phrase in low for phrase in _VERIFICATION_TEXT) and _VERIFICATION_FIELD_RE.search(low):
+        return ButterflyMXVerificationRequired(
+            "ButterflyMX asked for a verification code. Two-step verification is not supported"
+        )
+    if "invalid email or password" in low:
+        return ButterflyMXAuthError("Login failed: invalid email or password")
+    return None
 
 
 class ButterflyMXClient:
@@ -220,6 +338,7 @@ class ButterflyMXClient:
 
         Raises:
             ButterflyMXAuthError: wrong email/password.
+            ButterflyMXVerificationRequired: the site asked for a verification code.
             ButterflyMXConnectionError: couldn't reach ButterflyMX.
         """
         await self.ensure_token()
@@ -287,51 +406,71 @@ class ButterflyMXClient:
             )
             self._raise_for_status(status, page, "Fetching login page")
 
-            match = re.search(r'name="authenticity_token" value="([^"]+)"', page)
-            if not match:
-                raise ButterflyMXApiError("Could not find authenticity_token on the login page")
+            parsed = _parse_login_form(page, self.email, self.password)
+            if parsed is None:
+                raise ButterflyMXApiError("Could not find authenticity_token or _csrf_token on the login page")
+            action, form = parsed
 
             _LOGGER.debug("Submitting login form")
             status, text, headers = await self._request(
                 "POST",
-                f"{self.BASE_URL}/login",
+                self._absolute_url(action),
                 session=session,
                 allow_redirects=False,
-                data={
-                    "authenticity_token": match.group(1),
-                    "login[email]": self.email,
-                    "login[password]": self.password,
-                    "commit": "Sign in with email",
-                },
+                data=form,
             )
             self._raise_for_status(status, text, "Login")
 
-            # Rails/Turbo answers a successful login with 200 + <turbo-stream location="...">
+            # The old Rails app answers a successful login with 200 + <turbo-stream location="...">.
+            # The current identity service answers with a 303 whose Location is relative
+            # (`/oauth/authorize?...` on success, `/login/new` when the password is wrong).
             if status == 200 and "<turbo-stream" in text:
                 match = re.search(r'location="([^"]+)"', text)
                 if match:
-                    location = match.group(1).replace("&amp;", "&")
                     _LOGGER.debug("Following Turbo Stream redirect")
-                    status, _, headers = await self._request(
-                        "GET", f"{self.BASE_URL}{location}", session=session, allow_redirects=False
+                    status, text, headers = await self._request(
+                        "GET",
+                        self._absolute_url(html.unescape(match.group(1))),
+                        session=session,
+                        allow_redirects=False,
                     )
+                    self._raise_for_status(status, text, "Login redirect")
 
             for _ in range(10):
-                location = headers.get("Location")
-                if status not in (301, 302, 303, 307, 308) or not location:
-                    break
-                if location.startswith(self.REDIRECT_URI):
-                    params = urllib.parse.parse_qs(urllib.parse.urlparse(location).query)
-                    if params.get("state", [None])[0] != state:
-                        raise ButterflyMXAuthError("State mismatch in OAuth redirect")
-                    code = params.get("code", [None])[0]
-                    if not code:
-                        raise ButterflyMXAuthError("No authorization code in OAuth redirect")
-                    await self._exchange_code(session, code, verifier)
+                location = headers.get("Location") if status in _REDIRECT_STATUSES else None
+                if location and location.startswith(self.REDIRECT_URI):
+                    await self._exchange_code(session, self._authorization_code(location, state), verifier)
                     return
-                status, _, headers = await self._request("GET", location, session=session, allow_redirects=False)
+                if not location:
+                    break
+                status, text, headers = await self._request(
+                    "GET", self._absolute_url(location), session=session, allow_redirects=False
+                )
+                self._raise_for_status(status, text, "Login redirect")
+
+            problem = _login_page_problem(text)
+            if problem:
+                raise problem
 
         raise ButterflyMXAuthError("Login failed: no OAuth redirect received (check email/password)")
+
+    def _absolute_url(self, location: str) -> str:
+        """Resolve a possibly relative login URL against the accounts host.
+
+        Relative Locations (`/login/new`, `/oauth/authorize?...`) are what the
+        identity service sends. The `com.butterflymx.oauth://` redirect is
+        already absolute and is returned unchanged.
+        """
+        return urllib.parse.urljoin(f"{self.BASE_URL}/", location)
+
+    def _authorization_code(self, location: str, state: str) -> str:
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(location).query)
+        if params.get("state", [None])[0] != state:
+            raise ButterflyMXAuthError("State mismatch in OAuth redirect")
+        code = params.get("code", [None])[0]
+        if not code:
+            raise ButterflyMXAuthError("No authorization code in OAuth redirect")
+        return code
 
     async def _exchange_code(self, session: aiohttp.ClientSession, code: str, verifier: str) -> None:
         _LOGGER.debug("Exchanging authorization code for token")

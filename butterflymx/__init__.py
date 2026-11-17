@@ -7,6 +7,7 @@ from .exceptions import (
     ButterflyMXAuthError,
     ButterflyMXConnectionError,
     ButterflyMXError,
+    ButterflyMXVerificationRequired,
 )
 from .message import Message
 from .tenant import Tenant, TenantOverview
@@ -18,6 +19,7 @@ __all__ = [
     "ButterflyMXClient",
     "ButterflyMXConnectionError",
     "ButterflyMXError",
+    "ButterflyMXVerificationRequired",
     "Call",
     "Door",
     "Message",

@@ -13,6 +13,16 @@ class ButterflyMXAuthError(ButterflyMXError):
     """
 
 
+class ButterflyMXVerificationRequired(ButterflyMXAuthError):
+    """The password was submitted, but ButterflyMX asked for a verification code.
+
+    Two-step verification (an SMS or authenticator code) is not supported.
+    This is a subclass of ButterflyMXAuthError, so existing callers that only
+    catch that still treat it as a failed login. Catch this type first to tell
+    it apart from a wrong password.
+    """
+
+
 class ButterflyMXConnectionError(ButterflyMXError):
     """Couldn't reach ButterflyMX: network error, timeout, or a 5xx response.
 

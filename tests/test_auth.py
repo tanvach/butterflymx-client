@@ -2,12 +2,21 @@ import json
 import os
 import stat
 import time
+from pathlib import Path
 
 import pytest
 
-from butterflymx import ButterflyMXApiError, ButterflyMXAuthError, ButterflyMXClient
+from butterflymx import (
+    ButterflyMXApiError,
+    ButterflyMXAuthError,
+    ButterflyMXClient,
+    ButterflyMXVerificationRequired,
+)
+from butterflymx.client import _parse_login_form
 
-from .conftest import PASSWORD
+from .conftest import EMAIL, PASSWORD
+
+FIXTURE = Path(__file__).parent / "fixtures" / "login_csrf.html"
 
 
 async def test_full_login_gets_and_saves_tokens(make_client, fake, tmp_path):
@@ -41,6 +50,78 @@ async def test_missing_authenticity_token_raises_api_error(make_client, fake):
     with pytest.raises(ButterflyMXApiError):
         await make_client().login()
     assert "login" not in fake.requests
+
+
+def test_csrf_fixture_parses_login_form_not_sso_forms():
+    page = FIXTURE.read_text().replace("__CSRF_TOKEN__", "csrf-123").replace(
+        "__RETURN_TO__", "/oauth/authorize?client_id=test&amp;state=state-1"
+    )
+    parsed = _parse_login_form(page, EMAIL, PASSWORD)
+    assert parsed is not None
+    action, fields = parsed
+    assert action == "/login"
+    assert fields["_csrf_token"] == "csrf-123"
+    assert fields["return_to"] == "/oauth/authorize?client_id=test&state=state-1"
+    assert fields["email"] == EMAIL
+    assert fields["password"] == PASSWORD
+    assert fields["commit"] == "Sign in with email"
+    assert "login[email]" not in fields
+    assert "sso-csrf-not-used" not in fields.values()
+
+
+def test_rails_login_form_keeps_nested_field_names():
+    page = '<form><input value="csrf-123" name="authenticity_token"></form>'
+    parsed = _parse_login_form(page, EMAIL, PASSWORD)
+    assert parsed is not None
+    action, fields = parsed
+    assert action == "/login"
+    assert fields["authenticity_token"] == "csrf-123"
+    assert fields["login[email]"] == EMAIL
+    assert fields["login[password]"] == PASSWORD
+    assert "_csrf_token" not in fields
+
+
+def test_login_form_without_either_token_is_rejected():
+    assert _parse_login_form('<form><input name="email"><input name="password"></form>', EMAIL, PASSWORD) is None
+
+
+async def test_csrf_login_page_posts_return_to_and_gets_tokens(make_client, fake):
+    fake.login_page_format = "csrf"
+    client = make_client()
+    await client.login()
+
+    assert client.access_token in fake.valid_access_tokens
+    posted = fake.last_login_form
+    assert posted["_csrf_token"] == "csrf-123"
+    assert posted["email"] == EMAIL
+    assert posted["password"] == PASSWORD
+    assert posted["commit"] == "Sign in with email"
+    assert posted["return_to"].startswith("/oauth/authorize?")
+    assert "login[email]" not in posted
+    assert "authenticity_token" not in posted
+    assert fake.requests == ["authorize", "login", "authorize_redirect", "token:authorization_code"]
+
+
+async def test_csrf_wrong_password_raises_auth_error(make_client, fake):
+    fake.login_page_format = "csrf"
+    with pytest.raises(ButterflyMXAuthError, match="invalid email or password") as exc:
+        await make_client(password="wrong").login()
+    # The page says the password was wrong. That must stay a plain auth error,
+    # not the verification-code subclass and not an API/connection error.
+    assert type(exc.value) is ButterflyMXAuthError
+    assert fake.requests == ["authorize", "login", "login_error"]
+    assert "token:authorization_code" not in fake.requests
+
+
+async def test_verification_code_page_raises_distinct_error(make_client, fake):
+    fake.login_page_format = "csrf"
+    fake.login_requires_verification = True
+    with pytest.raises(ButterflyMXVerificationRequired, match="verification code") as exc:
+        await make_client().login()
+    # Subclass of the auth error, so callers that only catch that (the Home
+    # Assistant integration) still report a failed login rather than cannot_connect.
+    assert isinstance(exc.value, ButterflyMXAuthError)
+    assert "token:authorization_code" not in fake.requests
 
 
 async def test_state_mismatch_aborts_login(make_client, fake):

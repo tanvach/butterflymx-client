@@ -87,6 +87,8 @@ client = ButterflyMXClient(email, password, tokens=load_saved(), on_tokens_updat
 
 Access tokens last about 24 hours. Every request checks the token first. If it is expired or within 60 seconds of expiring, the client refreshes it with the refresh token. If the refresh is rejected, it logs in again with your email and password. If a request still gets a `401`, the client refreshes and retries once. Concurrent requests share a single refresh.
 
+Login accepts the current accounts form (`_csrf_token`, `email`, `password`, and the hidden `return_to` that leads back to the OAuth redirect) and the older Rails form (`authenticity_token`, `login[email]`, `login[password]`).
+
 **About the client ID**
 
 The default `CLIENT_ID` is the public OAuth client ID that the official ButterflyMX mobile app uses. It is not a secret: the login uses PKCE, which is designed for apps that cannot keep secrets, and the ID is visible in the app's network traffic. If ButterflyMX changes it, you can find the new one by intercepting the app's login with a proxy like [mitmproxy](https://mitmproxy.org/) or Proxyman. Look for the `client_id` parameter on the request to `https://accounts.butterflymx.com/oauth/authorize`, then pass it as `client_id=...`.
@@ -136,6 +138,7 @@ All errors inherit from `ButterflyMXError`:
 | Exception | When | What to do |
 |---|---|---|
 | `ButterflyMXAuthError` | Wrong email/password, or tokens rejected even after refreshing | Fix the credentials; retrying won't help |
+| `ButterflyMXVerificationRequired` | A verification code is required after the password. Subclass of `ButterflyMXAuthError` | Two-step verification isn't supported yet. Catch this before `ButterflyMXAuthError` to tell it apart from a wrong password |
 | `ButterflyMXConnectionError` | Network error, timeout, or a 5xx from ButterflyMX | Usually temporary; retry later |
 | `ButterflyMXApiError` | Unexpected response: GraphQL errors, non-JSON, or a changed login page | Likely an API change; please open an issue |
 

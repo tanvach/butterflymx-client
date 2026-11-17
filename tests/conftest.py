@@ -7,8 +7,10 @@ import asyncio
 import base64
 import copy
 import hashlib
+import html
 import itertools
 import urllib.parse
+from pathlib import Path
 
 import pytest
 from aiohttp import web
@@ -18,6 +20,29 @@ from butterflymx import ButterflyMXClient
 EMAIL = "user@example.com"
 PASSWORD = "hunter2"
 TENANT_ID = "prod-tenant-1"
+_LOGIN_FIXTURE = Path(__file__).parent / "fixtures" / "login_csrf.html"
+
+# The page a wrong password lands on (303 -> GET /login/new). Sanitized: no token
+# from the real site, just the markup the client classifies.
+LOGIN_ERROR_PAGE = """
+<form action="/login" method="post">
+  <input type="hidden" name="_csrf_token" value="csrf-123">
+  <input type="email" name="email" value="">
+  <input type="password" name="password">
+  <ul class="select-none text-sm text-red-1">Invalid email or password</ul>
+</form>
+"""
+
+# Not captured from the live site (a real account would be required). Shape only:
+# a code field, no password field, and the words the client looks for.
+VERIFICATION_PAGE = """
+<form action="/login/challenge" method="post">
+  <input type="hidden" name="_csrf_token" value="csrf-123">
+  <p>Enter the verification code we texted you</p>
+  <input name="code" id="verification_code">
+  <input type="submit" name="commit" value="Verify">
+</form>
+"""
 
 TENANT_DATA = {
     "accessPoints": {"nodes": [
@@ -61,6 +86,9 @@ class FakeButterflyMX:
         # Knobs for failure scenarios
         self.redirect_state_override = None
         self.login_page_has_token = True
+        self.login_page_format = "rails"  # "rails" (authenticity_token) or "csrf" (_csrf_token)
+        self.login_requires_verification = False
+        self.last_login_form = None
         self.graphql_override = None  # (status, body) to return instead of real data
         self.graphql_delay = 0.0  # seconds to stall GraphQL responses (timeout tests)
         self.data = copy.deepcopy(TENANT_DATA)
@@ -94,14 +122,43 @@ class FakeButterflyMX:
             raise web.HTTPFound(f"com.butterflymx.oauth://oauth?code={code}&state={state}")
         self.requests.append("authorize")
         self._pending[q["state"]] = (q["code_challenge"], q["client_id"])
-        field = '<input name="authenticity_token" value="csrf-123">' if self.login_page_has_token else ""
-        resp = web.Response(text=f"<form>{field}</form>", content_type="text/html")
+        if not self.login_page_has_token:
+            body = "<form></form>"
+        elif self.login_page_format == "csrf":
+            body = self._csrf_page(q)
+        else:
+            body = '<form><input name="authenticity_token" value="csrf-123"></form>'
+        resp = web.Response(text=body, content_type="text/html")
         resp.set_cookie("_accounts_session", "abc")  # Rails session cookie
         return resp
+
+    def _csrf_page(self, query):
+        """The current login page, with this authorize request's return_to filled in."""
+        return_to = "/oauth/authorize?" + urllib.parse.urlencode(
+            {
+                "client_id": query["client_id"],
+                "redirect_uri": query["redirect_uri"],
+                "response_type": query.get("response_type", "code"),
+                "state": query["state"],
+                "code_challenge": query["code_challenge"],
+                "code_challenge_method": query.get("code_challenge_method", "S256"),
+            }
+        )
+        template = _LOGIN_FIXTURE.read_text()
+        return template.replace("__CSRF_TOKEN__", "csrf-123").replace(
+            "__RETURN_TO__", html.escape(return_to, quote=True)
+        )
+
+    async def login_error_page(self, request):
+        self.requests.append("login_error")
+        return web.Response(text=LOGIN_ERROR_PAGE, content_type="text/html")
 
     async def login(self, request):
         self.requests.append("login")
         form = await request.post()
+        self.last_login_form = {key: form.get(key) for key in form}
+        if self.login_page_format == "csrf":
+            return self._csrf_login_result(form)
         if (form.get("authenticity_token") != "csrf-123" or form.get("login[email]") != EMAIL
                 or form.get("login[password]") != PASSWORD):
             return web.Response(text="<p>Invalid email or password</p>", content_type="text/html")
@@ -113,6 +170,27 @@ class FakeButterflyMX:
         self._authenticated.add(state)
         return web.Response(text=f'<turbo-stream action="redirect" location="{location}"></turbo-stream>',
                             content_type="text/vnd.turbo-stream.html")
+
+    def _csrf_login_result(self, form):
+        """303 back to return_to on success, 303 to /login/new when the password is wrong.
+
+        Mirrors the identity service: the posted return_to is the authorize URL
+        from the login form, and a bad password redirects to the login page.
+        """
+        return_to = form.get("return_to") or ""
+        state = urllib.parse.parse_qs(urllib.parse.urlparse(return_to).query).get("state", [None])[0]
+        ok = (
+            form.get("_csrf_token") == "csrf-123"
+            and form.get("email") == EMAIL
+            and form.get("password") == PASSWORD
+            and state in self._pending
+        )
+        if not ok:
+            raise web.HTTPSeeOther("/login/new")
+        if self.login_requires_verification:
+            return web.Response(text=VERIFICATION_PAGE, content_type="text/html")
+        self._authenticated.add(state)
+        raise web.HTTPSeeOther(return_to)
 
     async def token(self, request):
         form = await request.post()
@@ -179,6 +257,7 @@ class FakeButterflyMX:
         app = web.Application()
         app.router.add_get("/oauth/authorize", self.authorize)
         app.router.add_post("/login", self.login)
+        app.router.add_get("/login/new", self.login_error_page)
         app.router.add_post("/oauth/token", self.token)
         app.router.add_post("/graphql", self.graphql)
         app.router.add_post("/unlock", self.unlock)
