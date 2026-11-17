@@ -241,6 +241,32 @@ async def test_api_call_waits_for_verification_submit(make_client, fake):
     assert fake.count("verify") == 1
 
 
+async def test_close_closes_api_session_when_accounts_cleanup_is_cancelled(make_client):
+    client = make_client()
+    api = client._get_session()
+    login = aiohttp.ClientSession()
+    client._login_session = login
+    original = client._discard_login_attempt
+
+    async def discard():
+        session = client._login_session
+        client._login_session = None
+        client._pending_login = None
+        if session is not None and not session.closed:
+            await session.close()
+        raise asyncio.CancelledError
+
+    client._discard_login_attempt = discard
+    try:
+        with pytest.raises(asyncio.CancelledError):
+            await client.close()
+    finally:
+        client._discard_login_attempt = original
+    assert login.closed
+    assert api.closed
+    assert client._session is None
+
+
 async def test_cancellation_during_session_close_is_reraised(make_client, monkeypatch):
     client = make_client()
     session = aiohttp.ClientSession()

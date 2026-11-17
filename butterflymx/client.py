@@ -411,10 +411,15 @@ class ButterflyMXClient:
 
     async def close(self) -> None:
         """Close the HTTP session if this client created it."""
-        await self._discard_login_attempt()
-        if self._owns_session and self._session and not self._session.closed:
-            await self._session.close()
-        self._session = None
+        try:
+            await self._discard_login_attempt()
+        finally:
+            # Accounts cleanup re-raises CancelledError. The owned API session
+            # still has to close, and the cancellation still propagates.
+            session = self._session
+            self._session = None
+            if self._owns_session and session is not None and not session.closed:
+                await session.close()
 
     async def _discard_login_attempt(self) -> None:
         """Drop a half-finished login, including its accounts cookies.
