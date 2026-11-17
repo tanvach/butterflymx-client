@@ -297,20 +297,24 @@ def _page_says_invalid_password(text: str) -> bool:
     return "invalid email or password" in text.lower()
 
 
-def _pause_cancellation(task: asyncio.Task[Any] | None) -> None:
+def _pause_cancellation(task: asyncio.Task[Any] | None) -> bool:
     """Drop pending cancellation so a cleanup await can finish.
 
-    Python 3.11+ re-raises CancelledError at every later await until
-    `uncancel()` runs. Python 3.10 has neither method and does not need this.
+    Returns whether this task was being cancelled. Python 3.11+ re-raises
+    CancelledError at every later await until `uncancel()` runs. Python 3.10
+    has neither method; a caught CancelledError is not repeated automatically.
     """
     if task is None:
-        return
+        return False
     cancelling = getattr(task, "cancelling", None)
     uncancel = getattr(task, "uncancel", None)
     if not callable(cancelling) or not callable(uncancel):
-        return
+        return False
+    paused = False
     while cancelling():
         uncancel()
+        paused = True
+    return paused
 
 
 class ButterflyMXClient:
@@ -404,13 +408,19 @@ class ButterflyMXClient:
             return
         # cancelling()/uncancel() arrived in 3.11. 3.10 is still supported, and
         # on 3.10 a caught CancelledError does not cancel the next await.
-        _pause_cancellation(asyncio.current_task())
+        # A cancellation that arrives during close() is finished, then re-raised
+        # so client.close() and login() do not report success.
+        task = asyncio.current_task()
+        cancelled = _pause_cancellation(task)
         try:
             await session.close()
         except asyncio.CancelledError:
-            _pause_cancellation(asyncio.current_task())
+            cancelled = True
+            _pause_cancellation(task)
             if not session.closed:
                 await session.close()
+        if cancelled:
+            raise asyncio.CancelledError
 
     def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:

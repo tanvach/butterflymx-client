@@ -241,6 +241,29 @@ async def test_api_call_waits_for_verification_submit(make_client, fake):
     assert fake.count("verify") == 1
 
 
+async def test_cancellation_during_session_close_is_reraised(make_client, monkeypatch):
+    client = make_client()
+    session = aiohttp.ClientSession()
+    client._login_session = session
+    real_close = aiohttp.ClientSession.close
+    calls = {"n": 0}
+
+    async def slow_once(self):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            await asyncio.sleep(1)
+        await real_close(self)
+
+    monkeypatch.setattr(aiohttp.ClientSession, "close", slow_once)
+    task = asyncio.create_task(client._discard_login_attempt())
+    await asyncio.sleep(0.05)
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(task, 0.05)
+    assert session.closed
+    assert client._login_session is None
+    assert client._pending_login is None
+
+
 async def test_login_cleanup_without_python_311_cancel_methods(make_client, monkeypatch):
     """3.10 Task has no cancelling()/uncancel(). Cleanup must still close the session."""
 
