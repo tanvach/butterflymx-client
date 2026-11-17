@@ -101,6 +101,7 @@ class FakeButterflyMX:
         self.graphql_delay = 0.0  # seconds to stall GraphQL responses (timeout tests)
         self.authorize_delay = 0.0
         self.verify_delay = 0.0
+        self.login_error_delay = 0.0
         self.data = copy.deepcopy(TENANT_DATA)
         # Recorded traffic
         self.requests = []
@@ -162,6 +163,8 @@ class FakeButterflyMX:
         )
 
     async def login_error_page(self, request):
+        if self.login_error_delay:
+            await asyncio.sleep(self.login_error_delay)
         self.requests.append("login_error")
         return web.Response(text=LOGIN_ERROR_PAGE, content_type="text/html")
 

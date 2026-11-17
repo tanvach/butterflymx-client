@@ -5,6 +5,7 @@ import stat
 import time
 from pathlib import Path
 
+import aiohttp
 import pytest
 
 from butterflymx import (
@@ -240,13 +241,33 @@ async def test_api_call_waits_for_verification_submit(make_client, fake):
     assert fake.count("verify") == 1
 
 
-async def test_cancelled_login_closes_the_accounts_session(make_client, fake):
+async def test_cancelled_login_closes_the_accounts_session(make_client, fake, monkeypatch):
+    closed = []
+    real_close = aiohttp.ClientSession.close
+
+    async def tracking_close(self):
+        closed.append(self)
+        await real_close(self)
+
+    monkeypatch.setattr(aiohttp.ClientSession, "close", tracking_close)
     fake.authorize_delay = 1
     client = make_client()
     with pytest.raises(TimeoutError):
         await asyncio.wait_for(client.login(), 0.05)
+    assert closed and closed[0].closed
     assert client._login_session is None
     assert client._pending_login is None
+
+    # Cancellation while following the post-password redirect, inside _complete_login.
+    fake.authorize_delay = 0
+    fake.login_page_format = "csrf"
+    fake.login_error_delay = 1
+    client = make_client(password="wrong")
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(client.login(), 0.2)
+    assert client._login_session is None
+    assert client._pending_login is None
+    assert closed[-1].closed
 
 
 async def test_submit_without_a_pending_code_raises(make_client):

@@ -377,8 +377,9 @@ class ButterflyMXClient:
     async def _discard_login_attempt(self) -> None:
         """Drop a half-finished login, including its accounts cookies.
 
-        Safe to call while this task is being cancelled: one cancellation is
-        lifted so the session can finish closing, then the caller re-raises.
+        A cancelled task would otherwise fail the `await session.close()` and
+        leave the socket open. Pending cancellation is lifted until close
+        finishes; the caller's CancelledError still propagates.
         """
         self._pending_login = None
         session = self._login_session
@@ -386,9 +387,15 @@ class ButterflyMXClient:
         if session is None or session.closed:
             return
         task = asyncio.current_task()
-        if task is not None and task.cancelling():
+        while task is not None and task.cancelling():
             task.uncancel()
-        await session.close()
+        try:
+            await session.close()
+        except asyncio.CancelledError:
+            while task is not None and task.cancelling():
+                task.uncancel()
+            if not session.closed:
+                await session.close()
 
     def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -572,6 +579,7 @@ class ButterflyMXClient:
             _LOGGER.debug("Submitting verification code")
             data = dict(pending.fields)
             data[pending.code_field] = code
+            keep_session = False
             try:
                 status, text, headers = await self._request(
                     "POST",
@@ -583,12 +591,11 @@ class ButterflyMXClient:
                 self._raise_for_status(status, text, "Verification")
                 await self._complete_login(session, pending, status, text, headers)
             except (ButterflyMXVerificationRequired, ButterflyMXInvalidVerificationCode):
+                keep_session = True
                 raise
-            except BaseException:
-                await self._discard_login_attempt()
-                raise
-            else:
-                await self._discard_login_attempt()
+            finally:
+                if not keep_session:
+                    await self._discard_login_attempt()
 
     async def resend_verification_code(self) -> None:
         """Ask ButterflyMX to send another code, when the page offers that.
@@ -664,6 +671,9 @@ class ButterflyMXClient:
         self._login_session = session
         pending = _PendingVerification(verifier=verifier, state=state, action="", code_field="code", fields={})
         self._pending_login = pending
+        # Closed on every exit, including CancelledError, unless a code challenge
+        # was actually delivered. `except Exception` does not catch cancellation.
+        keep_session = False
         try:
             _LOGGER.debug("Fetching login page")
             status, page, _ = await self._request(
@@ -704,12 +714,11 @@ class ButterflyMXClient:
 
             await self._complete_login(session, pending, status, text, headers)
         except (ButterflyMXVerificationRequired, ButterflyMXInvalidVerificationCode):
+            keep_session = True
             raise
-        except BaseException:
-            await self._discard_login_attempt()
-            raise
-        else:
-            await self._discard_login_attempt()
+        finally:
+            if not keep_session:
+                await self._discard_login_attempt()
 
     async def _complete_login(
         self,
