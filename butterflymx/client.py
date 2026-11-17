@@ -297,6 +297,22 @@ def _page_says_invalid_password(text: str) -> bool:
     return "invalid email or password" in text.lower()
 
 
+def _pause_cancellation(task: asyncio.Task[Any] | None) -> None:
+    """Drop pending cancellation so a cleanup await can finish.
+
+    Python 3.11+ re-raises CancelledError at every later await until
+    `uncancel()` runs. Python 3.10 has neither method and does not need this.
+    """
+    if task is None:
+        return
+    cancelling = getattr(task, "cancelling", None)
+    uncancel = getattr(task, "uncancel", None)
+    if not callable(cancelling) or not callable(uncancel):
+        return
+    while cancelling():
+        uncancel()
+
+
 class ButterflyMXClient:
     CLIENT_ID = "0e3aeeb7cec2782b9fb21352a4349a44405ed5d7674072416b6481d51abfd6b6"
     REDIRECT_URI = "com.butterflymx.oauth://oauth"
@@ -386,14 +402,13 @@ class ButterflyMXClient:
         self._login_session = None
         if session is None or session.closed:
             return
-        task = asyncio.current_task()
-        while task is not None and task.cancelling():
-            task.uncancel()
+        # cancelling()/uncancel() arrived in 3.11. 3.10 is still supported, and
+        # on 3.10 a caught CancelledError does not cancel the next await.
+        _pause_cancellation(asyncio.current_task())
         try:
             await session.close()
         except asyncio.CancelledError:
-            while task is not None and task.cancelling():
-                task.uncancel()
+            _pause_cancellation(asyncio.current_task())
             if not session.closed:
                 await session.close()
 

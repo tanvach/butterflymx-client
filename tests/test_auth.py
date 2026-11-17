@@ -241,6 +241,23 @@ async def test_api_call_waits_for_verification_submit(make_client, fake):
     assert fake.count("verify") == 1
 
 
+async def test_login_cleanup_without_python_311_cancel_methods(make_client, monkeypatch):
+    """3.10 Task has no cancelling()/uncancel(). Cleanup must still close the session."""
+
+    class _Py310Task:
+        pass
+
+    monkeypatch.setattr(asyncio, "current_task", lambda: _Py310Task())
+    client = make_client()
+    session = aiohttp.ClientSession()
+    client._login_session = session
+    client._pending_login = object()
+    await client._discard_login_attempt()
+    assert session.closed
+    assert client._login_session is None
+    assert client._pending_login is None
+
+
 async def test_cancelled_login_closes_the_accounts_session(make_client, fake, monkeypatch):
     closed = []
     real_close = aiohttp.ClientSession.close
