@@ -689,6 +689,10 @@ class ButterflyMXClient:
                 kwargs["params"] = pending.resend_fields or None
             else:
                 kwargs["data"] = pending.resend_fields or {}
+            # Keep the challenge only when resend returns another code form.
+            # A 401/403 or a redirect back to the login page must not leave the
+            # client stuck on a session that can no longer be resumed.
+            keep_session = False
             try:
                 status, text, headers = await self._request(
                     pending.resend_method, self._absolute_url(pending.resend_action), session=session, **kwargs
@@ -700,7 +704,6 @@ class ButterflyMXClient:
                         await self._exchange_code(
                             session, self._authorization_code(location, pending.state), pending.verifier
                         )
-                        await self._discard_login_attempt()
                         return
                     if not location:
                         break
@@ -712,9 +715,10 @@ class ButterflyMXClient:
                 if form is None:
                     raise ButterflyMXApiError("Resend did not return a verification form")
                 pending.use_form(form)
-            except asyncio.CancelledError:
-                await self._discard_login_attempt()
-                raise
+                keep_session = True
+            finally:
+                if not keep_session:
+                    await self._discard_login_attempt()
 
     async def _full_login(self) -> None:
         verifier = generate_code_verifier()

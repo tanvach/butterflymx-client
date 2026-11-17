@@ -92,6 +92,7 @@ class FakeButterflyMX:
         # Nov 2026: after the code, authorize answers 200 "Returning to app…" (link + JS) instead of 302.
         self.app_redirect_page = False
         self.verification_offers_resend = False
+        self.resend_status = None  # force this HTTP status from the resend endpoint
         self.verification_code = "123456"
         self._verify_csrf = "csrf-verify"
         self._verify_return_to = None
@@ -253,6 +254,8 @@ class FakeButterflyMX:
 
     async def resend_code(self, request):
         self.requests.append("resend")
+        if self.resend_status:
+            return web.Response(status=self.resend_status, text="session expired")
         form = await request.post()
         if form.get("_csrf_token") != self._verify_csrf:
             return web.json_response({"error": "CSRF_ERROR"}, status=403)

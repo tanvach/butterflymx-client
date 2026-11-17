@@ -192,6 +192,26 @@ async def test_verification_redirect_is_followed(make_client, fake):
     assert "token:authorization_code" in fake.requests
 
 
+async def test_failed_resend_allows_a_fresh_login(make_client, fake):
+    fake.login_page_format = "csrf"
+    fake.login_requires_verification = True
+    fake.verification_offers_resend = True
+    fake.resend_status = 401
+    client = make_client()
+    with pytest.raises(ButterflyMXVerificationRequired):
+        await client.login()
+    with pytest.raises(ButterflyMXAuthError):
+        await client.resend_verification_code()
+    assert client._pending_login is None
+    assert client._login_session is None
+
+    fake.resend_status = None
+    fake.login_requires_verification = False
+    await client.login()
+    assert client.access_token in fake.valid_access_tokens
+    assert fake.count("authorize") == 2
+
+
 async def test_resend_is_used_only_when_the_page_offers_it(make_client, fake):
     fake.login_page_format = "csrf"
     fake.login_requires_verification = True
