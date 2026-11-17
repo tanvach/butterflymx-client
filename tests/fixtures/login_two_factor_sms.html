@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html class="h-full" lang="en">
+<head>
+  <script nonce="hOSk04qIGqpHRxLFhPXqpg==">
+window.dataLayer = window.dataLayer || [];
+window.dataLayer.push({"event":"pageView","virtualUrl":window.location.href,"environment":"production"});
+</script>
+<script nonce="hOSk04qIGqpHRxLFhPXqpg==">(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;var n=d.querySelector('[nonce]');n&&j.setAttribute('nonce',n.nonce||n.getAttribute('nonce'));f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer',"GTM-NR8NSQT");</script><script src="/vendor/sentry-browser-replay-11.9.0.min.js" nonce="hOSk04qIGqpHRxLFhPXqpg=="></script>
+<script nonce="hOSk04qIGqpHRxLFhPXqpg==">
+(function () {
+  if (!window.Sentry) return;
+  function scrubUrl(url) {
+    if (typeof url !== "string") return url;
+    return url
+      .split(/[?#]/)[0]
+      .replace(/^((?:(?:[a-z][a-z0-9+.-]*:)?\/\/[^\/]*)?\/(?:confirmations|account_unlocks|api\/mobile\/confirm)\/)[^\/]+/i, "$1[Filtered]");
+  }
+  function scrubText(text) {
+    if (typeof text !== "string") return text;
+    return text.replace(/(^|[\s("'=])((?:[a-z][a-z0-9+.-]*:\/\/|\/)[^\s"'\u003c>)]*)/gi, function (_, lead, url) {
+      return lead + scrubUrl(url);
+    });
+  }
+  function scrubBreadcrumb(crumb) {
+    if (!crumb) return crumb;
+    var data = crumb.data;
+    if (data) {
+      ["url", "from", "to"].forEach(function (key) {
+        if (typeof data[key] === "string") data[key] = scrubUrl(data[key]);
+      });
+    }
+    if (typeof crumb.message === "string") crumb.message = scrubText(crumb.message);
+    return crumb;
+  }
+  function scrubEvent(event) {
+    var request = event.request;
+    if (request) {
+      request.url = scrubUrl(request.url);
+      delete request.query_string;
+      if (request.headers && request.headers.Referer) request.headers.Referer = scrubUrl(request.headers.Referer);
+    }
+    if (event.urls) event.urls = event.urls.map(scrubUrl);
+    if (typeof event.message === "string") event.message = scrubText(event.message);
+    (event.breadcrumbs || []).forEach(scrubBreadcrumb);
+    ((event.exception && event.exception.values) || []).forEach(function (exception) {
+      exception.value = scrubText(exception.value);
+      ((exception.stacktrace && exception.stacktrace.frames) || []).forEach(function (frame) {
+        frame.filename = scrubUrl(frame.filename);
+        frame.abs_path = scrubUrl(frame.abs_path);
+      });
+    });
+    return event;
+  }
+  function scrubRecordingEvent(event) {
+    var payload = event.data && event.data.payload;
+    if (payload) {
+      scrubBreadcrumb(payload);
+      if (typeof payload.description === "string") payload.description = scrubText(payload.description);
+    }
+    return event;
+  }
+  var href = window.location.href;
+  Sentry.init({
+    dsn: "https://8c9002695fa6a95147fc5bd35908a90c@o312678.ingest.us.sentry.io/4509039196766208",
+    environment: "production",
+    release: "identity-js@0.7.63",
+    integrations: scrubUrl(href) === href ? [Sentry.replayIntegration({
+      maskAllText: true,
+      maskAllInputs: true,
+      blockAllMedia: true,
+      block: ["input[type=hidden]"],
+      maskAttributes: ["title", "placeholder", "aria-label", "action"],
+      networkDetailAllowUrls: [],
+      beforeAddRecordingEvent: scrubRecordingEvent
+    })] : [],
+    replaysOnErrorSampleRate: 1.0,
+    replaysSessionSampleRate: 0,
+    beforeSend: scrubEvent,
+    beforeBreadcrumb: scrubBreadcrumb
+  });
+  Sentry.addEventProcessor(function (event) {
+    return event.type === "replay_event" ? scrubEvent(event) : event;
+  });
+  Sentry.setTag("app_version", "0.7.63");
+})();
+</script><meta charset="utf-8">
+  <title>ButterflyMX - Verify with text message</title>
+  <meta content="ButterflyMX" name="description">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <link rel="stylesheet" href="/accounts.css">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" type="image/png" href="/apple-touch-icon.png" sizes="180x180">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#ffffff">
+</head>
+<body class="h-full text-muted-black font-inter">
+  <noscript><iframe height="0" width="0" style="display:none;visibility:hidden" src="https://www.googletagmanager.com/ns.html?id=GTM-NR8NSQT"></iframe></noscript>
+  <div class="min-h-full flex flex-col tablet:flex-row">
+    <div class="@container bg-cover grow-0 overflow-hidden bg-purple-4 relative tablet:basis-24 desktop:basis-2/5" style="background-image:url(/images/backgrounds/login.svg)">
+      <div class="flex flex-col desktop:flex-row items-center justify-end desktop:justify-center absolute inset-0">
+        <div class="w-full desktop:w-72 pr-4 desktop:pr-0">
+          <div class="login-logo-animation login-logo-animation--loading" id="logo-animation">
+            <svg viewBox="0 0 109 96" fill="none" xmlns="http://www.w3.org/2000/svg" class="my-7 mx-5 desktop:mb-6 desktop:mx-24 wings-svg"><path id="yellow" d="M108.594 36.6786C108.594 45.1894 101.761 52.0942 93.3313 52.0942H56.7551C56.7551 24.9859 77.1666 2.6924 103.319 0.0245777C106.224 -0.271101 108.597 2.14137 108.597 5.08807C108.594 11.7543 108.594 21.972 108.594 36.6786Z" fill="url(#paint0_linear_91_5399)"/><path id="blue" d="M0.402832 36.6786C0.402832 45.1894 7.23549 52.0942 15.6656 52.0942H52.2451C52.2451 24.9859 31.8337 2.6924 5.68125 0.0245777C2.77579 -0.271101 0.402832 2.14137 0.402832 5.08807C0.402832 11.7543 0.402832 21.972 0.402832 36.6786Z" fill="url(#paint1_linear_91_5399)"/><path id="red" d="M64.5396 83.8458C59.594 75.9532 56.7551 66.6326 56.7551 56.6501H93.947C102.028 56.6501 108.594 63.182 108.594 71.2224C108.594 95.0043 77.1965 104.07 64.5396 83.8458Z" fill="url(#paint2_linear_91_5399)"/><path id="purple" d="M44.4573 83.8458C49.4029 75.9532 52.2418 66.6326 52.2418 56.6501H15.0499C6.96924 56.6501 0.402832 63.182 0.402832 71.2224C0.402832 95.0043 31.8038 104.07 44.4573 83.8458Z" fill="url(#paint3_linear_91_5399)"/><defs><linearGradient id="paint0_linear_91_5399" x1="65.4561" y1="16.1703" x2="112.527" y2="45.6229" gradientUnits="userSpaceOnUse"><stop stop-color="#FFEB2E"/><stop offset="0.3484" stop-color="#FFD22F"/><stop offset="0.6315" stop-color="#FEB82F"/><stop offset="0.9173" stop-color="#FE9030"/></linearGradient><linearGradient id="paint1_linear_91_5399" x1="-3.73354" y1="44.9052" x2="40.8444" y2="18.9915" gradientUnits="userSpaceOnUse"><stop offset="0.0571" stop-color="#0068E5"/><stop offset="1" stop-color="#0AD9FF"/></linearGradient><linearGradient id="paint2_linear_91_5399" x1="103.172" y1="86.6504" x2="61.8233" y2="58.0967" gradientUnits="userSpaceOnUse"><stop stop-color="#EF0A36"/><stop offset="1" stop-color="#FF978A"/></linearGradient><linearGradient id="paint3_linear_91_5399" x1="7.97823" y1="85.1342" x2="51.219" y2="55.2776" gradientUnits="userSpaceOnUse"><stop stop-color="#7914EF"/><stop offset="1" stop-color="#DB69FF"/></linearGradient></defs></svg>
+            <svg viewBox="0 0 203 39" fill="none" xmlns="http://www.w3.org/2000/svg" class="hidden desktop:block mb-4 mx-12 text-white text-svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M14.6932 28.1415H14.6946L14.696 28.1401C15.9755 27.5187 16.9598 26.6804 17.6335 25.6223C18.3308 24.5418 18.6787 23.334 18.6787 22.0073C18.6787 20.4524 18.1922 19.0556 17.2245 17.8282C16.4246 16.8135 15.4723 16.125 14.3716 15.7751C15.396 15.3076 16.2403 14.6596 16.9001 13.8269C17.7056 12.8094 18.102 11.5443 18.102 10.0467C18.102 8.79275 17.779 7.65912 17.1289 6.65004C16.4773 5.61438 15.518 4.79984 14.2607 4.20364C12.9992 3.60463 11.4992 3.30933 9.7705 3.30933H0V29.0358H10.2391C11.9234 29.0344 13.4095 28.7391 14.6932 28.1415ZM12.3947 8.07618L12.3975 8.07898L12.4003 8.08178C13.1073 8.66119 13.4677 9.47573 13.4677 10.5562C13.4677 11.6618 13.1059 12.4876 12.4003 13.067C11.7099 13.6282 10.7243 13.9235 9.41146 13.9235H4.56502V7.15248H9.41284C10.7215 7.15108 11.7057 7.47018 12.3947 8.07618ZM13.0089 24.2283C12.27 24.8609 11.2372 25.1912 9.88002 25.1912H4.56502V17.7652H9.73723C11.0889 17.7652 12.148 18.1179 12.9368 18.7995C13.72 19.4783 14.1165 20.3922 14.1165 21.5692C14.1165 22.7252 13.7422 23.6013 13.0089 24.2283Z" fill="currentColor"/><path d="M40.7468 29.0344V8.54224H36.1846V19.9331C36.1846 21.6882 35.7382 23.0051 34.8787 23.9177C34.0414 24.8078 32.8949 25.264 31.4088 25.264C29.9227 25.264 28.7763 24.8092 27.939 23.9191C27.1031 23.0065 26.6691 21.6882 26.6691 19.9331V8.54224H22.1429V20.5517C22.1429 22.3991 22.4964 23.9904 23.2159 25.3158L23.2173 25.3172L23.2187 25.3186C23.959 26.6398 24.9626 27.6404 26.2269 28.3178H26.2283H26.2297C27.5134 28.991 28.9551 29.3255 30.548 29.3255C31.754 29.3255 32.8908 29.089 33.9527 28.6145H33.954H33.9554C34.833 28.2115 35.5788 27.6922 36.1887 27.0554V29.0358H40.7468V29.0344Z" fill="currentColor"/><path d="M55.777 29.0344V25.1184H53.028C52.2101 25.1184 51.6819 24.9645 51.3839 24.7084C51.1136 24.4313 50.9527 23.961 50.9527 23.2416V12.3854H55.777V8.54221H50.9527V3.56262H46.3544V8.54221H44.0144V12.3854H46.3544V23.2416C46.3544 25.2388 46.8549 26.7349 47.9085 27.6684C48.9482 28.5907 50.4273 29.0344 52.3085 29.0344H55.777Z" fill="currentColor"/><path d="M69.5344 29.0344V25.1184H66.7854C65.9675 25.1184 65.4393 24.9645 65.1412 24.7084C64.8709 24.4313 64.7101 23.961 64.7101 23.2416V12.3854H69.5344V8.54221H64.7101V3.56262H60.1118V8.54221H57.7704V12.3854H60.1104V23.2416C60.1104 25.2388 60.6109 26.7349 61.6644 27.6684C62.7042 28.5907 64.1833 29.0344 66.0645 29.0344H69.5344Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M75.8601 20.5642H90.9636L90.9955 20.3697C91.0939 19.7497 91.1411 19.0583 91.1411 18.2969C91.1411 16.325 90.7266 14.5769 89.8893 13.0598C89.052 11.5203 87.8819 10.3251 86.3792 9.47979C84.8765 8.63446 83.17 8.2146 81.2638 8.2146C79.2856 8.2146 77.5181 8.64706 75.9668 9.51618C74.4392 10.3867 73.2456 11.6309 72.3847 13.2432C71.5488 14.8331 71.1343 16.6763 71.1343 18.7686C71.1343 20.8609 71.5613 22.7167 72.4221 24.3304L72.4235 24.3318L72.4249 24.3332C73.3094 25.9189 74.514 27.1617 76.0376 28.0546L76.0389 28.056L76.0403 28.0574C77.5902 28.9265 79.3327 29.3589 81.2652 29.3589C83.6316 29.3589 85.6278 28.7669 87.2332 27.5689H87.2345C88.8551 26.3541 89.9766 24.8006 90.5921 22.9112L90.6919 22.6075H85.8039L85.7415 22.7363C85.3021 23.6348 84.7115 24.2982 83.9754 24.739C83.2379 25.1799 82.3382 25.4066 81.2652 25.4066C79.7805 25.4066 78.5412 24.9406 77.5306 24.0127C76.574 23.1408 76.0154 21.9959 75.8601 20.5642ZM77.5971 13.4909L77.5999 13.4895C78.5647 12.6092 79.7209 12.1683 81.0836 12.1683C82.596 12.1683 83.8492 12.6134 84.8585 13.4937C85.8067 14.3208 86.3196 15.4027 86.3903 16.7588H75.91C76.1277 15.3789 76.6933 14.2956 77.5971 13.4909Z" fill="currentColor"/><path d="M104.636 8.21606C103.236 8.21606 102.008 8.51417 100.96 9.11877C100.159 9.57362 99.4793 10.174 98.9248 10.9214V8.54356H94.3625V29.0357H98.9248V18.2634C98.9248 16.2481 99.331 14.8961 100.08 14.1389C100.863 13.3706 102.022 12.9689 103.592 12.9689H104.865V8.21606H104.636Z" fill="currentColor"/><path d="M114.364 12.3852H118.036V8.54207H114.364V7.35525C114.364 6.21462 114.612 5.48546 115.045 5.09078L115.047 5.08938L115.049 5.08798C115.487 4.66672 116.288 4.4246 117.519 4.4246H117.749V0.508667H117.519C114.903 0.508667 112.929 1.04609 111.645 2.16433C110.376 3.26717 109.764 5.01661 109.764 7.35525V8.54207H107.424V12.3852H109.764V29.0342H114.364V12.3852Z" fill="currentColor"/><path d="M125.778 29.0343V1.67175H121.216V29.0343H125.778Z" fill="currentColor"/><path d="M136.782 38.4491L149.143 8.54224H144.394L138.758 23.3844L133.332 8.54224H128.261L136.166 28.4746L132.036 38.4491H136.782Z" fill="currentColor"/><path d="M178.843 29.0343V3.30786H174.073L165.471 22.7839L156.834 3.30786H152.028V29.0343H156.59V12.5827L163.882 29.0343H167.023L174.279 12.5869V29.0343H178.843Z" fill="currentColor"/><path d="M187.124 3.30786L192.68 12.3237L197.883 3.30786H203L195.043 16.1893L202.963 29.0343H197.815L192.295 20.0898L187.127 29.0343H182.012L189.931 16.1893L181.974 3.30786H187.124Z" fill="currentColor"/></svg>
+            <h2 class="hidden desktop:block font-normal font-poppins text-xl text-center text-white leading-10 tracking-tight select-none" id="logo-subtitle">Property access made simple</h2>
+          </div>
+          <noscript>
+            <svg viewBox="0 0 109 96" fill="none" xmlns="http://www.w3.org/2000/svg" class="my-7 mx-5 desktop:mb-6 desktop:mx-24 wings-svg"><path id="yellow" d="M108.594 36.6786C108.594 45.1894 101.761 52.0942 93.3313 52.0942H56.7551C56.7551 24.9859 77.1666 2.6924 103.319 0.0245777C106.224 -0.271101 108.597 2.14137 108.597 5.08807C108.594 11.7543 108.594 21.972 108.594 36.6786Z" fill="url(#paint0_linear_91_5399)"/><path id="blue" d="M0.402832 36.6786C0.402832 45.1894 7.23549 52.0942 15.6656 52.0942H52.2451C52.2451 24.9859 31.8337 2.6924 5.68125 0.0245777C2.77579 -0.271101 0.402832 2.14137 0.402832 5.08807C0.402832 11.7543 0.402832 21.972 0.402832 36.6786Z" fill="url(#paint1_linear_91_5399)"/><path id="red" d="M64.5396 83.8458C59.594 75.9532 56.7551 66.6326 56.7551 56.6501H93.947C102.028 56.6501 108.594 63.182 108.594 71.2224C108.594 95.0043 77.1965 104.07 64.5396 83.8458Z" fill="url(#paint2_linear_91_5399)"/><path id="purple" d="M44.4573 83.8458C49.4029 75.9532 52.2418 66.6326 52.2418 56.6501H15.0499C6.96924 56.6501 0.402832 63.182 0.402832 71.2224C0.402832 95.0043 31.8038 104.07 44.4573 83.8458Z" fill="url(#paint3_linear_91_5399)"/><defs><linearGradient id="paint0_linear_91_5399" x1="65.4561" y1="16.1703" x2="112.527" y2="45.6229" gradientUnits="userSpaceOnUse"><stop stop-color="#FFEB2E"/><stop offset="0.3484" stop-color="#FFD22F"/><stop offset="0.6315" stop-color="#FEB82F"/><stop offset="0.9173" stop-color="#FE9030"/></linearGradient><linearGradient id="paint1_linear_91_5399" x1="-3.73354" y1="44.9052" x2="40.8444" y2="18.9915" gradientUnits="userSpaceOnUse"><stop offset="0.0571" stop-color="#0068E5"/><stop offset="1" stop-color="#0AD9FF"/></linearGradient><linearGradient id="paint2_linear_91_5399" x1="103.172" y1="86.6504" x2="61.8233" y2="58.0967" gradientUnits="userSpaceOnUse"><stop stop-color="#EF0A36"/><stop offset="1" stop-color="#FF978A"/></linearGradient><linearGradient id="paint3_linear_91_5399" x1="7.97823" y1="85.1342" x2="51.219" y2="55.2776" gradientUnits="userSpaceOnUse"><stop stop-color="#7914EF"/><stop offset="1" stop-color="#DB69FF"/></linearGradient></defs></svg>
+            <svg viewBox="0 0 203 39" fill="none" xmlns="http://www.w3.org/2000/svg" class=" desktop:block mb-4 mx-12 text-white text-svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M14.6932 28.1415H14.6946L14.696 28.1401C15.9755 27.5187 16.9598 26.6804 17.6335 25.6223C18.3308 24.5418 18.6787 23.334 18.6787 22.0073C18.6787 20.4524 18.1922 19.0556 17.2245 17.8282C16.4246 16.8135 15.4723 16.125 14.3716 15.7751C15.396 15.3076 16.2403 14.6596 16.9001 13.8269C17.7056 12.8094 18.102 11.5443 18.102 10.0467C18.102 8.79275 17.779 7.65912 17.1289 6.65004C16.4773 5.61438 15.518 4.79984 14.2607 4.20364C12.9992 3.60463 11.4992 3.30933 9.7705 3.30933H0V29.0358H10.2391C11.9234 29.0344 13.4095 28.7391 14.6932 28.1415ZM12.3947 8.07618L12.3975 8.07898L12.4003 8.08178C13.1073 8.66119 13.4677 9.47573 13.4677 10.5562C13.4677 11.6618 13.1059 12.4876 12.4003 13.067C11.7099 13.6282 10.7243 13.9235 9.41146 13.9235H4.56502V7.15248H9.41284C10.7215 7.15108 11.7057 7.47018 12.3947 8.07618ZM13.0089 24.2283C12.27 24.8609 11.2372 25.1912 9.88002 25.1912H4.56502V17.7652H9.73723C11.0889 17.7652 12.148 18.1179 12.9368 18.7995C13.72 19.4783 14.1165 20.3922 14.1165 21.5692C14.1165 22.7252 13.7422 23.6013 13.0089 24.2283Z" fill="currentColor"/><path d="M40.7468 29.0344V8.54224H36.1846V19.9331C36.1846 21.6882 35.7382 23.0051 34.8787 23.9177C34.0414 24.8078 32.8949 25.264 31.4088 25.264C29.9227 25.264 28.7763 24.8092 27.939 23.9191C27.1031 23.0065 26.6691 21.6882 26.6691 19.9331V8.54224H22.1429V20.5517C22.1429 22.3991 22.4964 23.9904 23.2159 25.3158L23.2173 25.3172L23.2187 25.3186C23.959 26.6398 24.9626 27.6404 26.2269 28.3178H26.2283H26.2297C27.5134 28.991 28.9551 29.3255 30.548 29.3255C31.754 29.3255 32.8908 29.089 33.9527 28.6145H33.954H33.9554C34.833 28.2115 35.5788 27.6922 36.1887 27.0554V29.0358H40.7468V29.0344Z" fill="currentColor"/><path d="M55.777 29.0344V25.1184H53.028C52.2101 25.1184 51.6819 24.9645 51.3839 24.7084C51.1136 24.4313 50.9527 23.961 50.9527 23.2416V12.3854H55.777V8.54221H50.9527V3.56262H46.3544V8.54221H44.0144V12.3854H46.3544V23.2416C46.3544 25.2388 46.8549 26.7349 47.9085 27.6684C48.9482 28.5907 50.4273 29.0344 52.3085 29.0344H55.777Z" fill="currentColor"/><path d="M69.5344 29.0344V25.1184H66.7854C65.9675 25.1184 65.4393 24.9645 65.1412 24.7084C64.8709 24.4313 64.7101 23.961 64.7101 23.2416V12.3854H69.5344V8.54221H64.7101V3.56262H60.1118V8.54221H57.7704V12.3854H60.1104V23.2416C60.1104 25.2388 60.6109 26.7349 61.6644 27.6684C62.7042 28.5907 64.1833 29.0344 66.0645 29.0344H69.5344Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M75.8601 20.5642H90.9636L90.9955 20.3697C91.0939 19.7497 91.1411 19.0583 91.1411 18.2969C91.1411 16.325 90.7266 14.5769 89.8893 13.0598C89.052 11.5203 87.8819 10.3251 86.3792 9.47979C84.8765 8.63446 83.17 8.2146 81.2638 8.2146C79.2856 8.2146 77.5181 8.64706 75.9668 9.51618C74.4392 10.3867 73.2456 11.6309 72.3847 13.2432C71.5488 14.8331 71.1343 16.6763 71.1343 18.7686C71.1343 20.8609 71.5613 22.7167 72.4221 24.3304L72.4235 24.3318L72.4249 24.3332C73.3094 25.9189 74.514 27.1617 76.0376 28.0546L76.0389 28.056L76.0403 28.0574C77.5902 28.9265 79.3327 29.3589 81.2652 29.3589C83.6316 29.3589 85.6278 28.7669 87.2332 27.5689H87.2345C88.8551 26.3541 89.9766 24.8006 90.5921 22.9112L90.6919 22.6075H85.8039L85.7415 22.7363C85.3021 23.6348 84.7115 24.2982 83.9754 24.739C83.2379 25.1799 82.3382 25.4066 81.2652 25.4066C79.7805 25.4066 78.5412 24.9406 77.5306 24.0127C76.574 23.1408 76.0154 21.9959 75.8601 20.5642ZM77.5971 13.4909L77.5999 13.4895C78.5647 12.6092 79.7209 12.1683 81.0836 12.1683C82.596 12.1683 83.8492 12.6134 84.8585 13.4937C85.8067 14.3208 86.3196 15.4027 86.3903 16.7588H75.91C76.1277 15.3789 76.6933 14.2956 77.5971 13.4909Z" fill="currentColor"/><path d="M104.636 8.21606C103.236 8.21606 102.008 8.51417 100.96 9.11877C100.159 9.57362 99.4793 10.174 98.9248 10.9214V8.54356H94.3625V29.0357H98.9248V18.2634C98.9248 16.2481 99.331 14.8961 100.08 14.1389C100.863 13.3706 102.022 12.9689 103.592 12.9689H104.865V8.21606H104.636Z" fill="currentColor"/><path d="M114.364 12.3852H118.036V8.54207H114.364V7.35525C114.364 6.21462 114.612 5.48546 115.045 5.09078L115.047 5.08938L115.049 5.08798C115.487 4.66672 116.288 4.4246 117.519 4.4246H117.749V0.508667H117.519C114.903 0.508667 112.929 1.04609 111.645 2.16433C110.376 3.26717 109.764 5.01661 109.764 7.35525V8.54207H107.424V12.3852H109.764V29.0342H114.364V12.3852Z" fill="currentColor"/><path d="M125.778 29.0343V1.67175H121.216V29.0343H125.778Z" fill="currentColor"/><path d="M136.782 38.4491L149.143 8.54224H144.394L138.758 23.3844L133.332 8.54224H128.261L136.166 28.4746L132.036 38.4491H136.782Z" fill="currentColor"/><path d="M178.843 29.0343V3.30786H174.073L165.471 22.7839L156.834 3.30786H152.028V29.0343H156.59V12.5827L163.882 29.0343H167.023L174.279 12.5869V29.0343H178.843Z" fill="currentColor"/><path d="M187.124 3.30786L192.68 12.3237L197.883 3.30786H203L195.043 16.1893L202.963 29.0343H197.815L192.295 20.0898L187.127 29.0343H182.012L189.931 16.1893L181.974 3.30786H187.124Z" fill="currentColor"/></svg>
+            <h2 class="hidden desktop:block font-normal font-poppins text-xl text-center text-white leading-10 tracking-tight select-none" style="opacity:0.5">Property access made simple</h2>
+          </noscript>
+        </div>
+      </div>
+    </div>
+    <main class="grow flex rounded-t-2xl bg-white tablet:rounded-l-2xl tablet:drop-shadow-left tablet:-ml-4 z-30">
+      <div class="flex flex-col w-full" id="content">
+        <div class="w-full flex flex-col select-none" id="flash_messages"></div>
+        
+  <div class="h-full px-7 py-5 tablet:px-24 tablet:pt-20 tablet:pb-12">
+    <div class="flex flex-col justify-between h-full max-w-[484px] gap-y-6">
+      <div class="flex flex-col gap-y-8 tablet:gap-y-10 max-w-sm">
+        <div><a href="https://butterflymx.com"><svg viewBox="0 0 145 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="h-6"><path d="M25.0654 8.49759C25.0654 10.4694 23.4824 12.069 21.5293 12.069H13.0555C13.0555 5.78865 17.7843 0.623768 23.8433 0.00569409C24.5164 -0.0628078 25.0661 0.496105 25.0661 1.17879C25.0654 2.72319 25.0654 5.0904 25.0654 8.49759Z" fill="url(#hl0)"/><path d="M6.10352e-05 8.49762C6.10352e-05 10.4694 1.58303 12.0691 3.5361 12.0691H12.0107C12.0107 5.78868 7.28187 0.623798 1.22295 0.0057246C0.549821 -0.0627772 6.10352e-05 0.496136 6.10352e-05 1.17882C6.10352e-05 2.72322 6.10352e-05 5.09043 6.10352e-05 8.49762Z" fill="url(#hl1)"/><path d="M14.859 19.4251C13.7132 17.5966 13.0555 15.4372 13.0555 13.1245H21.672C23.5441 13.1245 25.0654 14.6378 25.0654 16.5006C25.0654 22.0103 17.7913 24.1105 14.859 19.4251Z" fill="url(#hl2)"/><path d="M10.2064 19.4251C11.3522 17.5966 12.0099 15.4372 12.0099 13.1245H3.3934C1.52128 13.1245 0 14.6378 0 16.5006C0 22.0103 7.27487 24.1105 10.2064 19.4251Z" fill="url(#hl3)"/><path fill-rule="evenodd" clip-rule="evenodd" d="M39.6058 17.5064H39.6066L39.6073 17.5056C40.319 17.16 40.8665 16.6937 41.2412 16.1052C41.629 15.5043 41.8226 14.8325 41.8226 14.0946C41.8226 13.2297 41.5519 12.4528 41.0137 11.7702C40.5688 11.2058 40.0391 10.8228 39.4269 10.6282C39.9967 10.3682 40.4663 10.0078 40.8333 9.54463C41.2813 8.97872 41.5018 8.27501 41.5018 7.44209C41.5018 6.74462 41.3221 6.11409 40.9605 5.55284C40.5981 4.97681 40.0646 4.52376 39.3652 4.19215C38.6636 3.85898 37.8293 3.69473 36.8678 3.69473H31.4334V18.0038H37.1284C38.0652 18.0031 38.8918 17.8388 39.6058 17.5064ZM38.3274 6.34607L38.3289 6.34762L38.3305 6.34918C38.7237 6.67145 38.9242 7.1245 38.9242 7.72544C38.9242 8.3404 38.7229 8.79968 38.3305 9.12195C37.9465 9.4341 37.3983 9.59835 36.6681 9.59835H33.9725V5.8323H36.6688C37.3967 5.83152 37.9442 6.00901 38.3274 6.34607ZM38.669 15.3299C38.258 15.6818 37.6836 15.8655 36.9287 15.8655H33.9725V11.7351H36.8493C37.6011 11.7351 38.1901 11.9313 38.6289 12.3104C39.0645 12.6879 39.285 13.1962 39.285 13.8509C39.285 14.4939 39.0768 14.9812 38.669 15.3299Z" fill="currentColor"/><path d="M54.0969 18.003V6.60526H51.5594V12.9409C51.5594 13.917 51.3111 14.6496 50.833 15.1571C50.3673 15.6522 49.7297 15.9059 48.9031 15.9059C48.0765 15.9059 47.4389 15.6529 46.9732 15.1579C46.5082 14.6503 46.2669 13.917 46.2669 12.9409V6.60526H43.7494V13.285C43.7494 14.3125 43.946 15.1976 44.3462 15.9347L44.347 15.9355L44.3477 15.9363C44.7595 16.6711 45.3177 17.2277 46.0209 17.6045H46.0217H46.0224C46.7364 17.9789 47.5383 18.1649 48.4243 18.1649C49.0951 18.1649 49.7274 18.0334 50.318 17.7695H50.3187H50.3195C50.8076 17.5453 51.2224 17.2565 51.5617 16.9023V18.0038H54.0969V18.003Z" fill="currentColor"/><path d="M62.4566 18.0031V15.825H60.9276C60.4727 15.825 60.1789 15.7394 60.0132 15.5969C59.8628 15.4428 59.7734 15.1812 59.7734 14.7811V8.74285H62.4566V6.60529H59.7734V3.83563H57.2158V6.60529H55.9142V8.74285H57.2158V14.7811C57.2158 15.892 57.4941 16.7241 58.0801 17.2433C58.6584 17.7563 59.4811 18.0031 60.5274 18.0031H62.4566Z" fill="currentColor"/><path d="M70.1086 18.0031V15.825H68.5796C68.1247 15.825 67.8309 15.7394 67.6652 15.5969C67.5148 15.4428 67.4254 15.1812 67.4254 14.7811V8.74285H70.1086V6.60529H67.4254V3.83563H64.8678V6.60529H63.5655V8.74285H64.867V14.7811C64.867 15.892 65.1454 16.7241 65.7314 17.2433C66.3097 17.7563 67.1324 18.0031 68.1787 18.0031H70.1086Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M73.6269 13.2919H82.0275L82.0453 13.1837C82.1 12.8389 82.1262 12.4543 82.1262 12.0309C82.1262 10.9341 81.8957 9.96181 81.43 9.11799C80.9643 8.26172 80.3135 7.59694 79.4777 7.12677C78.6418 6.65659 77.6927 6.42307 76.6325 6.42307C75.5322 6.42307 74.5491 6.6636 73.6863 7.147C72.8366 7.63119 72.1727 8.32321 71.6939 9.21996C71.229 10.1043 70.9984 11.1295 70.9984 12.2932C70.9984 13.457 71.2359 14.4892 71.7147 15.3867L71.7155 15.3875L71.7163 15.3882C72.2082 16.2702 72.8782 16.9615 73.7256 17.4581L73.7264 17.4589L73.7272 17.4596C74.5892 17.9431 75.5584 18.1836 76.6333 18.1836C77.9494 18.1836 79.0598 17.8543 79.9526 17.188H79.9534C80.8548 16.5123 81.4785 15.6482 81.8209 14.5974L81.8764 14.4284H79.1577L79.123 14.5001C78.8786 14.9998 78.5501 15.3688 78.1407 15.614C77.7305 15.8592 77.2301 15.9853 76.6333 15.9853C75.8075 15.9853 75.1181 15.7261 74.556 15.21C74.024 14.725 73.7133 14.0883 73.6269 13.2919ZM74.5931 9.35775L74.5946 9.35697C75.1313 8.86733 75.7743 8.62213 76.5323 8.62213C77.3735 8.62213 78.0705 8.86967 78.6318 9.3593C79.1592 9.81936 79.4445 10.4211 79.4838 11.1754H73.6547C73.7757 10.4078 74.0903 9.80534 74.5931 9.35775Z" fill="currentColor"/><path d="M89.6324 6.42389C88.8537 6.42389 88.1705 6.58969 87.5876 6.92598C87.1419 7.17897 86.7641 7.51291 86.4557 7.92859V6.60604H83.9182V18.0038H86.4557V12.0122C86.4557 10.8913 86.6816 10.1393 87.098 9.71821C87.5336 9.29085 88.1782 9.06744 89.0518 9.06744H89.7596V6.42389H89.6324Z" fill="currentColor"/><path d="M95.0429 8.74275H97.0854V6.60518H95.0429V5.94507C95.0429 5.31065 95.181 4.90509 95.4215 4.68557L95.4231 4.6848L95.4238 4.68402C95.6675 4.44971 96.1132 4.31504 96.7978 4.31504H96.9258V2.13699H96.7978C95.3429 2.13699 94.2449 2.43591 93.5309 3.05788C92.8246 3.67128 92.4846 4.64432 92.4846 5.94507V6.60518H91.183V8.74275H92.4846V18.003H95.0429V8.74275Z" fill="currentColor"/><path d="M101.392 18.003V2.78391H98.8541V18.003H101.392Z" fill="currentColor"/><path d="M107.512 23.2395L114.387 6.60526H111.745L108.611 14.8605L105.593 6.60526H102.773L107.169 17.6917L104.872 23.2395H107.512Z" fill="currentColor"/><path d="M130.906 18.003V3.69391H128.253L123.469 14.5265L118.665 3.69391H115.992V18.003H118.529V8.85256L122.585 18.003H124.332L128.368 8.8549V18.003H130.906Z" fill="currentColor"/><path d="M135.512 3.69391L138.603 8.70856L141.496 3.69391H144.342L139.916 10.8586L144.321 18.003H141.459L138.388 13.0281L135.514 18.003H132.669L137.074 10.8586L132.648 3.69391H135.512Z" fill="currentColor"/><defs><linearGradient id="hl0" x1="15.0713" y1="3.74628" x2="25.9766" y2="10.5698" gradientUnits="userSpaceOnUse"><stop stop-color="#FFEB2E"/><stop offset="0.3484" stop-color="#FFD22F"/><stop offset="0.6315" stop-color="#FEB82F"/><stop offset="0.9173" stop-color="#FE9030"/></linearGradient><linearGradient id="hl1" x1="-0.95824" y1="10.4035" x2="9.36944" y2="4.39991" gradientUnits="userSpaceOnUse"><stop offset="0.0571" stop-color="#0068E5"/><stop offset="1" stop-color="#0AD9FF"/></linearGradient><linearGradient id="hl2" x1="23.8091" y1="20.0749" x2="14.2297" y2="13.4596" gradientUnits="userSpaceOnUse"><stop stop-color="#EF0A36"/><stop offset="1" stop-color="#FF978A"/></linearGradient><linearGradient id="hl3" x1="1.75504" y1="19.7236" x2="11.7729" y2="12.8065" gradientUnits="userSpaceOnUse"><stop stop-color="#7914EF"/><stop offset="1" stop-color="#DB69FF"/></linearGradient></defs></svg></a></div>
+      </div>
+      <div class="flex flex-col gap-y-12 tablet:gap-y-6">
+        <div class="w-full flex flex-col gap-y-2 tablet:gap-y-4 justify-end">
+          <h1 class="text-xl tablet:text-4xl font-poppins font-semibold text-gray-8 select-none tracking-tight">Verify with text message</h1>
+          <h2 class="text-gray-4 tablet:text-gray-7 select-none">A 6-digit code has been sent to your phone number ******0000</h2>
+        </div>
+        
+    <div class="flex flex-col max-w-[374px] gap-y-6">
+      <form method="POST" action="/login/two_factor_authentication" class="w-full flex flex-col gap-y-6">
+        <input type="hidden" name="_csrf_token" value="<TOKEN>" />
+        <input type="hidden" name="type" value="sms" />
+        <div class="group flex flex-col gap-y-1.5">
+          <label class="select-none block text-gray-4 text-sm font-medium" for="code"><span>Verification code</span></label>
+          <input type="text" id="code" name="code" required autocomplete="one-time-code"
+            inputmode="numeric" pattern="[0-9]*" maxlength="6" autofocus
+            class="block w-full text-gray-8 leading-5 bg-white px-0 py-1 border-0 shadow-b-1 shadow-gray-3 outline-none transition-all duration-100 ease-out placeholder:text-gray-3 focus:ring-0 focus:shadow-b-2 focus:shadow-purple-2" />
+          
+        </div>
+        <div><input type="submit" value="Use code" class="btn btn-primary" /></div>
+      </form>
+      <div>
+        <form method="POST" action="/login/two_factor_authentication/new?type=sms">
+          <input type="hidden" name="_csrf_token" value="<TOKEN>" />
+          <input type="hidden" name="context" value="resend" />
+          <button type="submit" class="text-cta">Resend code</button>
+        </form>
+      </div>
+      <div><a href="/login/two_factor_authentication" class="text-cta">Verify another way</a></div>
+    </div>
+      </div>
+      <div class="flex flex-col justify-end gap-y-6">
+        
+    <div class="mt-12 tablet:mt-6 text-sm flex flex-col gap-y-2">
+      <div class="text-sm">By signing in, you agree with our <a href="/terms-and-conditions" class="text-cta" target="_top">Terms and Policies</a></div>
+    </div>
+        <div class="w-full text-sm tablet:text-xs text-gray-3">&copy;2026  ButterflyMX, Inc.</div>
+      </div>
+    </div>
+  </div>
+      </div>
+    </main>
+  </div>
+  <script src="/vendor/anime-3.2.2.min.js" nonce="hOSk04qIGqpHRxLFhPXqpg=="></script>
+  <script nonce="hOSk04qIGqpHRxLFhPXqpg==">
+  (function() {
+    var el = document.getElementById('logo-animation');
+    if (!el || typeof anime === 'undefined') { if (el) el.classList.remove('login-logo-animation--loading'); return; }
+    var logoWings = el.querySelector('.wings-svg');
+    var logoText = el.querySelector('.text-svg');
+    var subtitle = document.getElementById('logo-subtitle');
+    if (!logoWings || !logoText || !subtitle) { el.classList.remove('login-logo-animation--loading'); return; }
+    el.classList.remove('login-logo-animation--loading');
+    if (window.innerWidth < 1440) return;
+    var y=logoWings.querySelector('#yellow'),r=logoWings.querySelector('#red'),p=logoWings.querySelector('#purple'),b=logoWings.querySelector('#blue');
+    if(!y||!r||!p||!b) return;
+    [y,r,p,b].forEach(function(w){w.style.opacity='0';});
+    logoText.style.opacity='0'; subtitle.style.opacity='0';
+    anime.timeline({duration:3000})
+      .add({targets:logoWings,keyframes:[{translateY:54,easing:'cubicBezier(0.42,0,0.58,1)',duration:0},{translateY:54,easing:'cubicBezier(0.846,0,1,0.561)',duration:1200},{translateY:0,easing:'cubicBezier(0.229,0.004,0.123,1)',duration:900}]},0)
+      .add({targets:y,keyframes:[{opacity:0,easing:'linear',duration:0},{opacity:0,easing:'linear',duration:350},{opacity:1,easing:'linear',duration:550}]},0)
+      .add({targets:r,keyframes:[{opacity:0,easing:'linear',duration:0},{opacity:0,easing:'linear',duration:450},{opacity:1,easing:'linear',duration:600}]},0)
+      .add({targets:p,keyframes:[{opacity:0,easing:'linear',duration:0},{opacity:0,easing:'linear',duration:500},{opacity:1,easing:'linear',duration:800}]},0)
+      .add({targets:b,keyframes:[{opacity:0,easing:'linear',duration:0},{opacity:0,easing:'linear',duration:600},{opacity:1,easing:'linear',duration:1050}]},0)
+      .add({targets:logoText,keyframes:[{opacity:0,easing:'cubicBezier(0.42,0,0.58,1)',duration:0},{opacity:0,easing:'cubicBezier(0.846,0,1,0.561)',duration:1444},{opacity:1,easing:'cubicBezier(0.458,0.16,0.613,0.15)',duration:856}]},0)
+      .add({targets:logoText,keyframes:[{translateY:-155,easing:'cubicBezier(0.42,0,0.58,1)',duration:0},{translateY:-155,easing:'cubicBezier(0.846,0,1,0.561)',duration:1200},{translateY:0,easing:'cubicBezier(0.012,0.704,0,0.992)',duration:1100}]},0)
+      .add({targets:subtitle,keyframes:[{translateY:-41,easing:'cubicBezier(0.42,0,0.58,1)',duration:0},{translateY:-41,easing:'cubicBezier(0.42,0,0.58,1)',duration:2600},{translateY:0,easing:'cubicBezier(0.00974,0.8,0.19026,1)',duration:1000}]},0)
+      .add({targets:subtitle,keyframes:[{opacity:0,easing:'cubicBezier(0.42,0,0.58,1)',duration:0},{opacity:0,easing:'cubicBezier(0.42,0,0.58,1)',duration:2600},{opacity:0.5,easing:'cubicBezier(0.42,0,0.58,1)',duration:1000}]},0);
+  })();
+  document.querySelectorAll('.toggle-pw').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var wrap=btn.closest('.relative');
+      var input=wrap.querySelector('input');
+      var show=wrap.querySelector('.icon-show');
+      var hide=wrap.querySelector('.icon-hide');
+      if(input.type==='password'){input.type='text';show.classList.remove('hidden');hide.classList.add('hidden');}
+      else{input.type='password';show.classList.add('hidden');hide.classList.remove('hidden');}
+    });
+  });
+  // Replacements for inline handler attributes, which helmet's default
+  // script-src-attr 'none' blocks: confirm-gated forms, flash-banner
+  // dismissal, and the TOTP-secret Copy button.
+  document.querySelectorAll('form[data-confirm]').forEach(function(form){
+    form.addEventListener('submit',function(e){
+      if(!confirm(form.getAttribute('data-confirm'))) e.preventDefault();
+    });
+  });
+  document.querySelectorAll('[data-flash] [data-dismiss]').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var banner=btn.closest('[data-flash]');
+      if(banner) banner.remove();
+    });
+  });
+  document.querySelectorAll('[data-clipboard]').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var el=document.querySelector('[data-totp-secret]');
+      if(el&&navigator.clipboard) navigator.clipboard.writeText(el.textContent.trim());
+    });
+  });
+  </script>
+</body>
+</html>

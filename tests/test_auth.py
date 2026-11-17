@@ -16,7 +16,7 @@ from butterflymx import (
     ButterflyMXInvalidVerificationCode,
     ButterflyMXVerificationRequired,
 )
-from butterflymx.client import _parse_login_form, _parse_verification_form
+from butterflymx.client import _app_redirect_from_page, _parse_login_form, _parse_verification_form
 
 from .conftest import EMAIL, PASSWORD
 
@@ -469,3 +469,54 @@ async def test_client_id_override(make_client, fake):
 
 async def test_password_not_written_to_token_file(client, tmp_path):
     assert PASSWORD not in (tmp_path / "tokens.json").read_text()
+
+
+TWO_FACTOR_FIXTURE = Path(__file__).parent / "fixtures" / "login_two_factor_sms.html"
+RETURNING_FIXTURE = Path(__file__).parent / "fixtures" / "oauth_returning_to_app.html"
+
+
+def test_two_factor_sms_page_is_a_code_form_with_resend():
+    """Recorded Nov 2026 after a real password login (values redacted)."""
+    form = _parse_verification_form(TWO_FACTOR_FIXTURE.read_text())
+    assert form is not None
+    assert form.action == "/login/two_factor_authentication"
+    assert form.code_field == "code"
+    assert form.fields.get("type") == "sms"
+    assert "_csrf_token" in form.fields
+    assert form.can_resend is True
+
+
+def test_returning_to_app_page_yields_the_app_redirect():
+    page = RETURNING_FIXTURE.read_text().replace("{code}", "abc").replace("{state}", "xyz")
+    url = _app_redirect_from_page(page, ButterflyMXClient.REDIRECT_URI)
+    assert url == "com.butterflymx.oauth://oauth?code=abc&state=xyz"
+    assert _app_redirect_from_page("<p>nothing here</p>", ButterflyMXClient.REDIRECT_URI) is None
+    assert _app_redirect_from_page(
+        '<a href="com.butterflymx.oauth://oauth?error=access_denied">x</a>', ButterflyMXClient.REDIRECT_URI
+    ) is None
+
+
+async def test_code_then_returning_to_app_page_completes_login(make_client, fake):
+    """The real Nov 2026 sequence: password, SMS code, then a 200 returning-to-app page."""
+    fake.login_page_format = "csrf"
+    fake.login_requires_verification = True
+    fake.app_redirect_page = True
+    client = make_client()
+    with pytest.raises(ButterflyMXVerificationRequired):
+        await client.login()
+    await client.submit_verification_code("123456")
+    assert client.access_token in fake.valid_access_tokens
+    assert "token:authorization_code" in fake.requests
+    assert client._login_session is None
+
+
+async def test_returning_to_app_page_with_wrong_state_is_rejected(make_client, fake):
+    fake.login_page_format = "csrf"
+    fake.login_requires_verification = True
+    fake.app_redirect_page = True
+    fake.redirect_state_override = "someone-else"
+    client = make_client()
+    with pytest.raises(ButterflyMXVerificationRequired):
+        await client.login()
+    with pytest.raises(ButterflyMXAuthError, match="State mismatch"):
+        await client.submit_verification_code("123456")

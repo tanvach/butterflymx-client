@@ -89,6 +89,8 @@ class FakeButterflyMX:
         self.login_page_format = "rails"  # "rails" (authenticity_token) or "csrf" (_csrf_token)
         self.login_requires_verification = False
         self.verification_via_redirect = False
+        # Nov 2026: after the code, authorize answers 200 "Returning to app…" (link + JS) instead of 302.
+        self.app_redirect_page = False
         self.verification_offers_resend = False
         self.verification_code = "123456"
         self._verify_csrf = "csrf-verify"
@@ -132,6 +134,9 @@ class FakeButterflyMX:
             state = self.redirect_state_override or q["state"]
             code = f"code-{next(self.counter)}"
             self._codes[code] = q["code_challenge"]
+            if self.app_redirect_page:
+                page = (Path(__file__).parent / "fixtures" / "oauth_returning_to_app.html").read_text()
+                return web.Response(text=page.replace("{code}", code).replace("{state}", state), content_type="text/html")
             raise web.HTTPFound(f"com.butterflymx.oauth://oauth?code={code}&state={state}")
         self.requests.append("authorize")
         self._pending[q["state"]] = (q["code_challenge"], q["client_id"])

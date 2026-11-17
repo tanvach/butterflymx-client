@@ -293,6 +293,26 @@ def _page_says_invalid_code(text: str) -> bool:
     return any(phrase in low for phrase in _INVALID_CODE_TEXT)
 
 
+def _app_redirect_from_page(page: str, redirect_uri: str) -> str | None:
+    """The `com.butterflymx.oauth://` URL on a returning-to-app page, if any.
+
+    Observed Nov 2026 after the SMS code: HTTP 200, title "Returning to app…",
+    `<a href="com.butterflymx.oauth://oauth?code=…&amp;state=…">` plus
+    `window.location.replace("com.butterflymx.oauth://oauth?code=…&state=…")`.
+    Only a URL that carries an authorization code counts.
+    """
+    parser = _LoginFormParser()
+    parser.feed(page)
+    candidates = [anchor["href"] for anchor in parser.anchors]
+    for match in re.finditer(r"""location\.(?:replace|assign)\(\s*(["'])(.*?)\1\s*\)""", page):
+        candidates.append(match.group(2).replace("\\u0026", "&").replace("\\/", "/"))
+    for candidate in candidates:
+        url = html.unescape(candidate.strip())
+        if url.startswith(redirect_uri) and "code=" in url:
+            return url
+    return None
+
+
 def _describe_page(status: int, text: str) -> str:
     """A short, value-free summary of an unexpected login page for the error message.
 
@@ -793,6 +813,15 @@ class ButterflyMXClient:
                 "GET", self._absolute_url(location), session=session, allow_redirects=False
             )
             self._raise_for_status(status, text, "Login redirect")
+
+        # The identity service (Nov 2026) can finish with a 200 "Returning to app…"
+        # page whose link and window.location.replace() carry the app redirect,
+        # instead of a 302 to it.
+        app_redirect = _app_redirect_from_page(text, self.REDIRECT_URI)
+        if app_redirect is not None:
+            _LOGGER.debug("Following app redirect from the returning-to-app page")
+            await self._exchange_code(session, self._authorization_code(app_redirect, pending.state), pending.verifier)
+            return
 
         form = _parse_verification_form(text)
         if form is not None and _page_says_invalid_code(text):
