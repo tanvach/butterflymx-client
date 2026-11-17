@@ -123,7 +123,7 @@ def _parse_login_form(page: str, email: str, password: str) -> tuple[str, dict[s
     """Return `(action, fields)` for the login POST, or None if no token is present.
 
     Hidden fields (including `return_to`) are copied through. HTML entities in
-    values are decoded, so a `return_to` of `/oauth/authorize?a=1&amp;b=2` is
+    values are decoded, so a `return_to` of `/oauth/authorize?a=1&b=2` is
     posted as `/oauth/authorize?a=1&b=2`.
     """
     parser = _LoginFormParser()
@@ -291,6 +291,28 @@ def _parse_verification_form(page: str, page_url: str = "") -> _VerificationForm
 def _page_says_invalid_code(text: str) -> bool:
     low = text.lower()
     return any(phrase in low for phrase in _INVALID_CODE_TEXT)
+
+
+def _describe_page(status: int, text: str) -> str:
+    """A short, value-free summary of an unexpected login page for the error message.
+
+    Form actions and input names only (never input values), plus the title and
+    any visible alert-like text, so a failed login can be diagnosed from logs.
+    """
+    parser = _LoginFormParser()
+    parser.feed(text)
+    forms = [
+        f"{form['method']} {urllib.parse.urlparse(form['action']).path or '?'}"
+        f"[{','.join(sorted({i.get('name') for i in form['inputs'] if i.get('name')}))}]"
+        for form in parser.forms
+    ]
+    title = re.search(r"<title[^>]*>(.*?)</title>", text, re.I | re.S)
+    visible = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", text)))
+    alerts = re.findall(r"[^.!?]{0,80}(?:error|invalid|incorrect|expired|wrong|try again)[^.!?]{0,80}", visible, re.I)
+    return (
+        f"page HTTP {status}, title={html.unescape(title.group(1).strip()) if title else None!r}, "
+        f"forms={forms}, alerts={[a.strip() for a in alerts[:3]]}"
+    )
 
 
 def _page_says_invalid_password(text: str) -> bool:
@@ -761,6 +783,7 @@ class ButterflyMXClient:
                 return
             if not location:
                 break
+            _LOGGER.debug("Login redirect: HTTP %s to %s", status, urllib.parse.urlparse(location).path)
             status, text, headers = await self._request(
                 "GET", self._absolute_url(location), session=session, allow_redirects=False
             )
@@ -776,7 +799,9 @@ class ButterflyMXClient:
             raise self._verification_error(ButterflyMXVerificationRequired, form)
         if _page_says_invalid_password(text):
             raise ButterflyMXAuthError("Login failed: invalid email or password")
-        raise ButterflyMXAuthError("Login failed: no OAuth redirect received (check email/password)")
+        raise ButterflyMXAuthError(
+            f"Login failed: no OAuth redirect received (check email/password); {_describe_page(status, text)}"
+        )
 
     def _pending_verification_required(self) -> ButterflyMXVerificationRequired:
         pending = self._pending_login
