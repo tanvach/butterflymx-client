@@ -136,7 +136,8 @@ class FakeButterflyMX:
             self._codes[code] = q["code_challenge"]
             if self.app_redirect_page:
                 page = (Path(__file__).parent / "fixtures" / "oauth_returning_to_app.html").read_text()
-                return web.Response(text=page.replace("{code}", code).replace("{state}", state), content_type="text/html")
+                page = page.replace("{code}", code).replace("{state}", state)
+                return web.Response(text=page, content_type="text/html")
             raise web.HTTPFound(f"com.butterflymx.oauth://oauth?code={code}&state={state}")
         self.requests.append("authorize")
         self._pending[q["state"]] = (q["code_challenge"], q["client_id"])
